@@ -201,9 +201,9 @@ export function DashboardShell({
             <Link
               href="/dashboard"
               aria-label="Dashboard home"
-              className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl border border-electric-400/40 bg-obsidian-950 text-xs font-bold text-electric-300 shadow-cyan-glow"
+              className="mx-auto flex items-center justify-center rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-400"
             >
-              EE
+              <BrandLogo size="sm" iconOnly />
             </Link>
           )}
 

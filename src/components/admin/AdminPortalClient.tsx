@@ -828,8 +828,13 @@ export function AdminPortalClient() {
         <div className="mx-auto flex max-w-7xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-electric-400/35 bg-electric-500/15 text-electric-400 shadow-cyan-glow">
-                <ShieldCheck className="h-5 w-5" />
+              <span className="theme-preserve-dark flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-electric-400/45 bg-[#020614] p-0.5 shadow-cyan-glow">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/logo-icon-192.png"
+                  alt="E-Learning Ecosystem"
+                  className="h-full w-full object-contain"
+                />
               </span>
               <div>
                 <div className="flex flex-wrap items-center gap-2">

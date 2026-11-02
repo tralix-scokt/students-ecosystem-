@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, BookOpen } from "lucide-react";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { BookCover } from "@/components/book/BookCover";
 import { BookEducationQuotePage } from "@/components/book/BookEducationQuotePage";
 import { BookLoginLeftPage } from "@/components/book/BookLoginLeftPage";
@@ -136,16 +137,21 @@ export function BookExperience({
       {/* Minimal Top Bar */}
       <header className="relative z-40 border-b border-white/[0.06] bg-obsidian-950/70 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-          <Link
-            href="/"
-            className="inline-flex min-h-[38px] items-center gap-2 rounded-xl border border-slate-800 bg-obsidian-900/90 px-3.5 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-electric-400/50 hover:text-electric-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-400"
-          >
-            <ArrowLeft
-              className="h-3.5 w-3.5 text-electric-400"
-              aria-hidden="true"
-            />
-            <span>Book Cover</span>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="inline-flex min-h-[38px] items-center gap-2 rounded-xl border border-slate-800 bg-obsidian-900/90 px-3.5 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-electric-400/50 hover:text-electric-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-400"
+            >
+              <ArrowLeft
+                className="h-3.5 w-3.5 text-electric-400"
+                aria-hidden="true"
+              />
+              <span>Book Cover</span>
+            </Link>
+            <div className="hidden sm:block">
+              <BrandLogo size="sm" showSubtitle={false} />
+            </div>
+          </div>
 
           <div className="flex items-center gap-2.5">
             {isOpen && (
