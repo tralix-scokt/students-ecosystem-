@@ -10,7 +10,8 @@ const SITE_URL = (
 ).replace(/\/+$/, "");
 
 const GOOGLE_SITE_VERIFICATION =
-  process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim() || undefined;
+  process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim() ||
+  "eaOjtUPxRcMrUSwo72BA2o4ItYweR6gd1bZwwH2uwac";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -203,16 +203,15 @@ export function AdminGrowthMarketingPanel() {
           </div>
 
           {/* Step 2 */}
-          <div className="rounded-xl border border-white/10 bg-obsidian-950/90 p-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-electric-300">
-              Step 2 • Verify Ownership
+          <div className="rounded-xl border border-emerald-400/30 bg-obsidian-950/90 p-4">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-300">
+              Step 2 • HTML Meta Tag Installed
             </span>
             <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
-              Choose <strong>HTML tag</strong> verification in Google Search
-              Console, copy the <code>content=&quot;...&quot;</code> code, and
-              set <code>NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION</code> in Vercel —
-              your app already renders the Google verification meta tag
-              automatically.
+              Your Google Search Console <code>google-site-verification</code>{" "}
+              meta tag (<code>eaOjtUPx...uwac</code>) is live in{" "}
+              <code>&lt;head&gt;</code> — click <strong>Verify</strong> inside
+              Google Search Console now!
             </p>
           </div>
 
