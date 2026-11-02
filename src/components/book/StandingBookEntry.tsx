@@ -70,15 +70,15 @@ export function StandingBookEntry() {
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none fixed left-1/2 top-1/4 h-[460px] w-[520px] -translate-x-1/2 -translate-y-1/3 rounded-full bg-blue-600/20 blur-[130px]"
+        className="ambient-glow-blue pointer-events-none fixed left-1/2 top-1/4 h-[480px] w-[540px] -translate-x-1/2 -translate-y-1/3 rounded-full"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none fixed bottom-12 left-1/2 h-[380px] w-[620px] -translate-x-1/2 rounded-full bg-electric-400/15 blur-[135px]"
+        className="ambient-glow-cyan pointer-events-none fixed bottom-12 left-1/2 h-[400px] w-[640px] -translate-x-1/2 rounded-full"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none fixed right-1/4 top-1/3 h-[340px] w-[340px] rounded-full bg-fuchsia-600/15 blur-[130px]"
+        className="ambient-glow-fuchsia pointer-events-none fixed right-1/4 top-1/3 h-[360px] w-[360px] rounded-full"
         aria-hidden="true"
       />
 

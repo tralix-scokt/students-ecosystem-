@@ -56,18 +56,9 @@ export function WelcomeHeroBanner({
   return (
     <section
       aria-labelledby="welcome-heading"
-      className="relative overflow-hidden rounded-3xl border border-electric-400/30 hardcover-surface p-6 shadow-card-elevated sm:p-8"
+      className="relative rounded-3xl border border-electric-400/30 hardcover-surface p-6 shadow-card-elevated sm:p-8"
     >
-      <div
-        className="pointer-events-none absolute -right-16 -top-20 h-60 w-60 rounded-full bg-electric-400/12 blur-[85px]"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute -bottom-24 left-12 h-56 w-64 rounded-full bg-aura-500/12 blur-[90px]"
-        aria-hidden="true"
-      />
-
-      <div className="relative z-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
+      <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
         <div className="max-w-2xl">
           <span className="inline-flex items-center gap-2 rounded-full border border-electric-400/35 bg-electric-400/10 px-3 py-1 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-electric-300">
             Academic Command Center

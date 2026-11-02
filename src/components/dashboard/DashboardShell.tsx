@@ -157,20 +157,16 @@ export function DashboardShell({
   };
 
   return (
-    <div className="relative flex min-h-screen w-full overflow-x-clip bg-obsidian-950 text-white">
-      {/* Subtle Ambient Background Grid & Glow */}
+    <div className="relative flex min-h-screen w-full bg-obsidian-950 text-white">
+      {/* Single Viewport-Clipped Ambient Background Layer (iOS Safari Safe) */}
       <div
-        className="pointer-events-none fixed inset-0 ecosystem-grid-bg opacity-65"
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
         aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none fixed left-1/3 top-0 h-[440px] w-[680px] -translate-x-1/2 rounded-full bg-electric-400/[0.06] blur-[150px]"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none fixed bottom-0 right-10 h-[380px] w-[500px] rounded-full bg-aura-500/[0.07] blur-[150px]"
-        aria-hidden="true"
-      />
+      >
+        <div className="absolute inset-0 ecosystem-grid-bg opacity-65" />
+        <div className="ambient-glow-cyan absolute left-1/3 top-0 h-[440px] w-[680px] -translate-x-1/2 rounded-full opacity-70" />
+        <div className="ambient-glow-violet absolute bottom-0 right-10 h-[380px] w-[500px] rounded-full opacity-70" />
+      </div>
 
       {/* =====================================================================
           DESKTOP COLLAPSIBLE LEFT SIDEBAR
@@ -391,7 +387,7 @@ export function DashboardShell({
          ===================================================================== */}
       <div className="relative z-20 flex min-w-0 flex-1 flex-col">
         {/* Sticky Top Header */}
-        <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-obsidian-950/80 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-obsidian-950/95 lg:bg-obsidian-950/85 lg:backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             {/* Mobile Menu Button & Compact Brand */}
             <div className="flex items-center gap-2.5 lg:hidden">
@@ -701,7 +697,7 @@ export function DashboardShell({
            =================================================================== */}
         <nav
           aria-label="Mobile quick navigation"
-          className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/[0.08] bg-obsidian-950/95 px-2 py-1.5 backdrop-blur-xl lg:hidden"
+          className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/[0.08] bg-obsidian-950/95 px-2 py-1.5 lg:hidden"
         >
           <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
             {DASHBOARD_NAV_ITEMS.filter((item) => item.isCoreMobileTab).map(

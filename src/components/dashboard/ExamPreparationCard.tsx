@@ -21,7 +21,7 @@ export function ExamPreparationCard({
       className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-aura-400/35 bg-gradient-to-br from-obsidian-850 via-obsidian-900 to-obsidian-950 p-6 shadow-violet-glow sm:p-7"
     >
       <div
-        className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-aura-500/20 blur-[70px]"
+        className="ambient-glow-violet pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full"
         aria-hidden="true"
       />
 

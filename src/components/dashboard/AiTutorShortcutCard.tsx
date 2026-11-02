@@ -12,11 +12,11 @@ export function AiTutorShortcutCard() {
     >
       {/* Subtle Cyan & Violet Accent Lighting */}
       <div
-        className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full bg-electric-400/20 blur-[65px]"
+        className="ambient-glow-cyan pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute -bottom-10 left-4 h-40 w-40 rounded-full bg-aura-500/20 blur-[65px]"
+        className="ambient-glow-violet pointer-events-none absolute -bottom-10 left-4 h-44 w-44 rounded-full"
         aria-hidden="true"
       />
 

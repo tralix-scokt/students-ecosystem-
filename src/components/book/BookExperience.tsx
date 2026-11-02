@@ -125,11 +125,11 @@ export function BookExperience({
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none fixed left-1/2 top-1/3 h-[540px] w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-electric-400/[0.09] blur-[140px]"
+        className="ambient-glow-cyan pointer-events-none fixed left-1/2 top-1/3 h-[540px] w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none fixed bottom-10 right-1/4 h-[440px] w-[540px] rounded-full bg-fuchsia-500/[0.10] blur-[140px]"
+        className="ambient-glow-fuchsia pointer-events-none fixed bottom-10 right-1/4 h-[440px] w-[540px] rounded-full opacity-80"
         aria-hidden="true"
       />
 

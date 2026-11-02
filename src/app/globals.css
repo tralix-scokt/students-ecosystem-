@@ -18,7 +18,6 @@
   body {
     background-color: #02050e;
     color: #f8fafc;
-    overflow-x: clip;
   }
 
   ::selection {
@@ -32,26 +31,59 @@
    ============================================================================ */
 
 .ecosystem-grid-bg {
-  background-image: linear-gradient(
+  background-image:
+    radial-gradient(
+      ellipse 80% 65% at 50% 35%,
+      transparent 30%,
+      rgba(2, 5, 14, 0.92) 100%
+    ),
+    linear-gradient(
       to right,
-      rgba(148, 163, 184, 0.045) 1px,
+      rgba(148, 163, 184, 0.04) 1px,
       transparent 1px
     ),
     linear-gradient(
       to bottom,
-      rgba(148, 163, 184, 0.045) 1px,
+      rgba(148, 163, 184, 0.04) 1px,
       transparent 1px
     );
-  background-size: 56px 56px;
-  mask-image: radial-gradient(
-    ellipse 80% 65% at 50% 35%,
-    #000000 35%,
-    transparent 100%
+  background-size: 100% 100%, 56px 56px, 56px 56px;
+}
+
+/* Zero-blur radial ambient glows — prevents iOS Safari WebKit GPU tile eviction */
+.ambient-glow-cyan {
+  background: radial-gradient(
+    closest-side,
+    rgba(0, 229, 255, 0.14) 0%,
+    rgba(0, 229, 255, 0.05) 45%,
+    rgba(0, 229, 255, 0) 100%
   );
-  -webkit-mask-image: radial-gradient(
-    ellipse 80% 65% at 50% 35%,
-    #000000 35%,
-    transparent 100%
+}
+
+.ambient-glow-violet {
+  background: radial-gradient(
+    closest-side,
+    rgba(139, 92, 246, 0.16) 0%,
+    rgba(139, 92, 246, 0.05) 45%,
+    rgba(139, 92, 246, 0) 100%
+  );
+}
+
+.ambient-glow-fuchsia {
+  background: radial-gradient(
+    closest-side,
+    rgba(217, 70, 239, 0.15) 0%,
+    rgba(217, 70, 239, 0.05) 45%,
+    rgba(217, 70, 239, 0) 100%
+  );
+}
+
+.ambient-glow-blue {
+  background: radial-gradient(
+    closest-side,
+    rgba(37, 99, 235, 0.22) 0%,
+    rgba(37, 99, 235, 0.07) 48%,
+    rgba(37, 99, 235, 0) 100%
   );
 }
 
@@ -94,13 +126,8 @@
     radial-gradient(110% 85% at 10% 88%, rgba(139, 92, 246, 0.18) 0%, transparent 55%),
     linear-gradient(148deg, #0d1d3e 0%, #071128 46%, #040917 100%);
   box-shadow:
-    inset 0 1px 1px rgba(103, 240, 255, 0.42),
-    inset -1px 0 1px rgba(0, 229, 255, 0.34),
-    inset 1px 0 2px rgba(167, 139, 250, 0.28),
-    inset 0 -1px 2px rgba(139, 92, 246, 0.38),
-    -18px 32px 65px rgba(0, 0, 0, 0.85),
-    0 0 46px -8px rgba(0, 229, 255, 0.22),
-    0 0 64px -12px rgba(139, 92, 246, 0.28);
+    inset 0 1px 0 rgba(103, 240, 255, 0.35),
+    0 20px 44px -12px rgba(0, 0, 0, 0.82);
 }
 
 /* Subtle tactile weave texture over hardcover board */

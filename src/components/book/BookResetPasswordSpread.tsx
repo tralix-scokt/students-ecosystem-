@@ -125,7 +125,7 @@ export function BookResetPasswordSpread() {
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none fixed left-1/2 top-1/3 h-[540px] w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-electric-400/[0.09] blur-[140px]"
+        className="ambient-glow-cyan pointer-events-none fixed left-1/2 top-1/3 h-[540px] w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80"
         aria-hidden="true"
       />
 

@@ -19,13 +19,13 @@ export function BrandLogo({
   }[size];
 
   const titleClasses = {
-    sm: "text-xs sm:text-sm tracking-[0.16em]",
-    md: "text-sm sm:text-base tracking-[0.16em]",
-    lg: "text-base sm:text-lg tracking-[0.18em]",
+    sm: "text-[11px] sm:text-sm tracking-[0.09em] sm:tracking-[0.16em]",
+    md: "text-sm sm:text-base tracking-[0.12em] sm:tracking-[0.16em]",
+    lg: "text-base sm:text-lg tracking-[0.14em] sm:tracking-[0.18em]",
   }[size];
 
   return (
-    <div className={`inline-flex items-center gap-3 select-none ${className}`}>
+    <div className={`inline-flex items-center gap-2.5 sm:gap-3 select-none ${className}`}>
       <div
         className={`relative flex shrink-0 items-center justify-center rounded-xl border border-electric-400/35 bg-gradient-to-br from-obsidian-800 via-obsidian-900 to-obsidian-950 shadow-cyan-glow ${iconDimensions}`}
         aria-hidden="true"
@@ -69,14 +69,14 @@ export function BrandLogo({
         </svg>
       </div>
 
-      <div className="flex flex-col leading-none">
+      <div className="min-w-0 flex flex-col leading-tight">
         <span
           className={`font-display font-bold uppercase text-white ${titleClasses}`}
         >
           {BRAND_IDENTITY.name}
         </span>
         {showSubtitle && (
-          <span className="mt-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-slate-300/90">
+          <span className="mt-1 hidden items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-300/90 sm:flex">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-electric-400 shadow-[0_0_8px_#00E5FF]" />
             <span>{BRAND_IDENTITY.poweredBy}</span>
           </span>

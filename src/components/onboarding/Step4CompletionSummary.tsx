@@ -32,13 +32,8 @@ export function Step4CompletionSummary({
   return (
     <section aria-labelledby="step4-heading" className="space-y-8">
       {/* Hero Completion Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-electric-400/45 hardcover-surface p-6 text-center shadow-book-open sm:p-10">
-        <div
-          className="pointer-events-none absolute -top-24 left-1/2 h-56 w-96 -translate-x-1/2 rounded-full bg-electric-400/15 blur-[90px]"
-          aria-hidden="true"
-        />
-
-        <div className="relative z-10 mx-auto max-w-2xl">
+      <div className="relative rounded-3xl border border-electric-400/45 hardcover-surface p-6 text-center shadow-book-open sm:p-10">
+        <div className="mx-auto max-w-2xl">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-electric-400/50 bg-electric-400/15 text-electric-300 shadow-cyan-glow">
             <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
           </div>

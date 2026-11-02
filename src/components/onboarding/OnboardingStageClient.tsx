@@ -438,11 +438,11 @@ export function OnboardingStageClient({
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none fixed left-1/2 top-1/4 h-[520px] w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-electric-400/[0.08] blur-[140px]"
+        className="ambient-glow-cyan pointer-events-none fixed left-1/2 top-1/4 h-[520px] w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none fixed bottom-10 right-1/4 h-[440px] w-[540px] rounded-full bg-aura-500/[0.09] blur-[140px]"
+        className="ambient-glow-violet pointer-events-none fixed bottom-10 right-1/4 h-[440px] w-[540px] rounded-full opacity-80"
         aria-hidden="true"
       />
 
