@@ -15,11 +15,13 @@ import {
   GraduationCap,
   Loader2,
   Play,
+  Share2,
   ShieldAlert,
   Sparkles,
   Target,
   XCircle,
 } from "lucide-react";
+import { buildExamChallengeSharePayload } from "@/lib/marketing/viralShare";
 import { DashboardErrorState } from "@/components/dashboard/DashboardErrorState";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
@@ -95,6 +97,7 @@ export function ExamPreparationClient() {
   const [loadingAiExplainId, setLoadingAiExplainId] = useState<string | null>(
     null
   );
+  const [copiedChallenge, setCopiedChallenge] = useState(false);
 
   const autoSubmitTriggeredRef = useRef(false);
 
@@ -679,19 +682,74 @@ export function ExamPreparationClient() {
                     </h2>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled={generatingPlan}
-                    onClick={handleGenerateAiRevisionPlan}
-                    className="inline-flex items-center gap-2 rounded-xl bg-aura-500 px-4 py-2.5 text-xs font-semibold text-white hover:bg-aura-400 disabled:opacity-50"
-                  >
-                    {generatingPlan ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    Generate 5-Day AI Revision Plan
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(() => {
+                      const shareData = buildExamChallengeSharePayload({
+                        examLabel:
+                          selectedCategoryObj?.shortLabel || "CBT Practice",
+                        subjectLabel: selectedSubject,
+                        scorePercent: Number(resultSummary.scorePercent ?? 0),
+                        correctCount: Number(resultSummary.correctCount ?? 0),
+                        gradableCount: Number(resultSummary.gradableCount ?? 0),
+                      });
+                      return (
+                        <>
+                          <a
+                            href={shareData.whatsappUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-3.5 py-2.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/25"
+                          >
+                            <Share2 className="h-3.5 w-3.5" />
+                            <span>Share on WhatsApp</span>
+                          </a>
+                          <a
+                            href={shareData.xIntentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-obsidian-950 px-3 py-2.5 text-xs font-semibold text-slate-200 transition hover:border-electric-400/45 hover:text-white"
+                          >
+                            <span>Post on X</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(
+                                  shareData.message
+                                );
+                                setCopiedChallenge(true);
+                                setTimeout(() => setCopiedChallenge(false), 2500);
+                              } catch {
+                                setCopiedChallenge(false);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-electric-400/35 bg-electric-500/10 px-3 py-2.5 text-xs font-semibold text-electric-300 transition hover:bg-electric-500/20"
+                          >
+                            <span>
+                              {copiedChallenge
+                                ? "Copied Challenge!"
+                                : "Copy Challenge Link"}
+                            </span>
+                          </button>
+                        </>
+                      );
+                    })()}
+
+                    <button
+                      type="button"
+                      disabled={generatingPlan}
+                      onClick={handleGenerateAiRevisionPlan}
+                      className="inline-flex items-center gap-2 rounded-xl bg-aura-500 px-4 py-2.5 text-xs font-semibold text-white hover:bg-aura-400 disabled:opacity-50"
+                    >
+                      {generatingPlan ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      Generate 5-Day AI Revision Plan
+                    </button>
+                  </div>
                 </div>
 
                 {/* Weak Topics & Recommended Verified Lessons */}

@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Cpu,
   Download,
+  Globe,
   Loader2,
   LogOut,
   Megaphone,
@@ -50,13 +51,16 @@ import {
   type PastQuestionsApiAdminStatus,
 } from "@/lib/exams/pastQuestionsClient";
 
+import { AdminGrowthMarketingPanel } from "@/components/admin/AdminGrowthMarketingPanel";
+
 type AdminSection =
   | "overview"
   | "users"
   | "courses"
   | "exams"
   | "announcements"
-  | "ai_governance";
+  | "ai_governance"
+  | "growth_marketing";
 
 const THEME_MODES: Array<{
   id: EcosystemTheme;
@@ -972,6 +976,11 @@ export function AdminPortalClient() {
                 id: "ai_governance",
                 label: "AI Quotas & Audit Logs",
                 icon: <Cpu className="h-3.5 w-3.5" />,
+              },
+              {
+                id: "growth_marketing",
+                label: "Google SEO & Growth",
+                icon: <Globe className="h-3.5 w-3.5" />,
               },
             ] as const
           ).map((tab) => (
@@ -2113,6 +2122,9 @@ export function AdminPortalClient() {
             </section>
           </div>
         )}
+
+        {/* 7. GOOGLE SEO & VIRAL GROWTH COMMAND CENTER */}
+        {section === "growth_marketing" && <AdminGrowthMarketingPanel />}
       </main>
     </div>
   );

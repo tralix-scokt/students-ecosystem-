@@ -22,10 +22,12 @@ import {
   PenSquare,
   Search,
   Settings,
+  Share2,
   ShieldCheck,
   User,
   X,
 } from "lucide-react";
+import { buildClassmateInvitePayload } from "@/lib/marketing/viralShare";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { CommandPaletteModal } from "@/components/dashboard/CommandPaletteModal";
 import { QuickFocusPomodoro } from "@/components/dashboard/QuickFocusPomodoro";
@@ -286,8 +288,24 @@ export function DashboardShell({
           })}
         </nav>
 
-        {/* Sidebar Bottom Admin Link (Admins Only) + Sign Out */}
+        {/* Sidebar Bottom Invite + Admin Link (Admins Only) + Sign Out */}
         <div className="space-y-2 border-t border-white/[0.06] p-3">
+          <a
+            href={buildClassmateInvitePayload().whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={sidebarCollapsed ? "Invite Classmates on WhatsApp" : undefined}
+            className={`flex min-h-[40px] w-full items-center gap-3 rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+              sidebarCollapsed ? "justify-center" : ""
+            }`}
+          >
+            <Share2
+              className="h-4 w-4 shrink-0 text-emerald-400"
+              aria-hidden="true"
+            />
+            {!sidebarCollapsed && <span>Invite Classmates</span>}
+          </a>
+
           {userProfile?.role === "admin" && (
             <Link
               href="/admin"
