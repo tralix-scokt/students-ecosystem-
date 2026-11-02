@@ -131,6 +131,7 @@ export async function fetchAdminDashboardPayload(): Promise<
   | { status: "forbidden" | "unauthenticated" }
   | {
       status: "ready";
+      adminIdentity: { fullName: string; email: string };
       overview: PlatformOverviewStats;
       users: AdminProfileRow[];
       courses: AdminCourseRow[];
@@ -153,7 +154,7 @@ export async function fetchAdminDashboardPayload(): Promise<
 
   const { data: ownProfile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, full_name, email")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -224,6 +225,10 @@ export async function fetchAdminDashboardPayload(): Promise<
 
   return {
     status: "ready",
+    adminIdentity: {
+      fullName: String(ownProfile.full_name || "Platform Admin"),
+      email: String(ownProfile.email || user.email || ""),
+    },
     overview: ovRes.data as PlatformOverviewStats,
     users: (uRes.data || []).map((r: Record<string, unknown>) => ({
       id: String(r.id),

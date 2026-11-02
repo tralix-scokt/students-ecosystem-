@@ -69,11 +69,15 @@ export function BookLoginLeftPage({
           nextPath.startsWith("/") &&
           !nextPath.startsWith("//");
         const target =
-          response.redirectTo === "/onboarding"
-            ? "/onboarding"
-            : hasExplicitCustomNext
+          response.redirectTo === "/admin"
+            ? hasExplicitCustomNext
               ? nextPath
-              : response.redirectTo || "/onboarding";
+              : "/admin"
+            : response.redirectTo === "/onboarding"
+              ? "/onboarding"
+              : hasExplicitCustomNext
+                ? nextPath
+                : response.redirectTo || "/onboarding";
         router.push(target);
         router.refresh();
         return;

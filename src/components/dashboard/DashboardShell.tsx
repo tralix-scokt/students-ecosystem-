@@ -22,6 +22,7 @@ import {
   PenSquare,
   Search,
   Settings,
+  ShieldCheck,
   User,
   X,
 } from "lucide-react";
@@ -285,8 +286,24 @@ export function DashboardShell({
           })}
         </nav>
 
-        {/* Sidebar Bottom Sign Out */}
-        <div className="border-t border-white/[0.06] p-3">
+        {/* Sidebar Bottom Admin Link (Admins Only) + Sign Out */}
+        <div className="space-y-2 border-t border-white/[0.06] p-3">
+          {userProfile?.role === "admin" && (
+            <Link
+              href="/admin"
+              title={sidebarCollapsed ? "Admin Portal" : undefined}
+              className={`flex min-h-[44px] w-full items-center gap-3 rounded-xl border border-electric-400/45 bg-electric-500/15 px-3 py-2.5 text-xs font-bold text-electric-300 shadow-cyan-glow transition-colors hover:bg-electric-500/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-400 ${
+                sidebarCollapsed ? "justify-center" : ""
+              }`}
+            >
+              <ShieldCheck
+                className="h-4 w-4 shrink-0 text-electric-400"
+                aria-hidden="true"
+              />
+              {!sidebarCollapsed && <span>Admin Portal</span>}
+            </Link>
+          )}
+
           <button
             type="button"
             disabled={isSigningOut}
@@ -377,7 +394,17 @@ export function DashboardShell({
               })}
             </nav>
 
-            <div className="mt-4 border-t border-white/[0.07] pt-3">
+            <div className="mt-4 space-y-2 border-t border-white/[0.07] pt-3">
+              {userProfile?.role === "admin" && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileDrawerOpen(false)}
+                  className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-electric-400/45 bg-electric-500/15 px-4 py-2.5 text-xs font-bold text-electric-300"
+                >
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                  <span>Admin Portal</span>
+                </Link>
+              )}
               <button
                 type="button"
                 disabled={isSigningOut}
@@ -594,6 +621,21 @@ export function DashboardShell({
 
                     {/* Profile Actions */}
                     <div className="p-2">
+                      {userProfile?.role === "admin" && (
+                        <Link
+                          role="menuitem"
+                          href="/admin"
+                          onClick={() => setProfileMenuOpen(false)}
+                          className="mb-1 flex min-h-[42px] items-center gap-2.5 rounded-xl border border-electric-400/35 bg-electric-500/10 px-3 py-2 text-xs font-bold text-electric-300 transition-colors hover:bg-electric-500/20"
+                        >
+                          <ShieldCheck
+                            className="h-4 w-4 text-electric-400"
+                            aria-hidden="true"
+                          />
+                          <span>Open Admin Portal</span>
+                        </Link>
+                      )}
+
                       <Link
                         role="menuitem"
                         href="/onboarding?review=1"
@@ -727,6 +769,7 @@ export function DashboardShell({
           publishedCourses={publishedCourses}
           ongoingCourses={ongoingCourses}
           academicProfile={academicProfile}
+          isAdmin={userProfile?.role === "admin"}
         />
 
         {/* ===================================================================

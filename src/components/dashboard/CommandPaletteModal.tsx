@@ -8,6 +8,7 @@ import {
   Command,
   Moon,
   Search,
+  ShieldCheck,
   Sparkles,
   Sun,
   X,
@@ -30,6 +31,7 @@ interface CommandPaletteModalProps {
   publishedCourses: PublishedLearningCourse[];
   ongoingCourses: OngoingCourseItem[];
   academicProfile: StudentAcademicProfile | null;
+  isAdmin?: boolean;
 }
 
 interface PaletteCommandItem {
@@ -47,6 +49,7 @@ export function CommandPaletteModal({
   publishedCourses,
   ongoingCourses,
   academicProfile,
+  isAdmin = false,
 }: CommandPaletteModalProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -63,6 +66,22 @@ export function CommandPaletteModal({
 
   const commands = useMemo<PaletteCommandItem[]>(() => {
     const q = query.trim().toLowerCase();
+
+    const adminItems: PaletteCommandItem[] = isAdmin
+      ? [
+          {
+            id: "nav-admin-portal",
+            title: "Open Admin Governance Portal",
+            subtitle: "/admin",
+            category: "Workspace",
+            icon: <ShieldCheck className="h-4 w-4 text-electric-400" />,
+            run: () => {
+              onClose();
+              router.push("/admin");
+            },
+          },
+        ]
+      : [];
 
     const navItems: PaletteCommandItem[] = DASHBOARD_NAV_ITEMS.map((item) => ({
       id: `nav-${item.id}`,
@@ -129,7 +148,7 @@ export function CommandPaletteModal({
           },
         }));
 
-    const all = [...navItems, ...themeItems, ...dynamicHits];
+    const all = [...adminItems, ...navItems, ...themeItems, ...dynamicHits];
     if (!q) return all;
     return all.filter(
       (item) =>
@@ -139,6 +158,7 @@ export function CommandPaletteModal({
     );
   }, [
     academicProfile,
+    isAdmin,
     onClose,
     ongoingCourses,
     publishedCourses,

@@ -160,17 +160,35 @@ export async function POST(request: Request) {
     }
 
     let redirectTo = "/onboarding";
+    let isAdmin = false;
     try {
-      const { data: academicRow } = await supabase
-        .from("student_academic_profiles")
-        .select("onboarding_completed")
-        .eq("user_id", data.user.id)
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
         .maybeSingle();
-      if (academicRow?.onboarding_completed) {
-        redirectTo = "/dashboard";
+      if (profileRow?.role === "admin") {
+        isAdmin = true;
       }
     } catch {
-      // Defaults safely to /onboarding which checks completion state as well
+      // Fallback safely to academic profile check
+    }
+
+    if (isAdmin) {
+      redirectTo = "/admin";
+    } else {
+      try {
+        const { data: academicRow } = await supabase
+          .from("student_academic_profiles")
+          .select("onboarding_completed")
+          .eq("user_id", data.user.id)
+          .maybeSingle();
+        if (academicRow?.onboarding_completed) {
+          redirectTo = "/dashboard";
+        }
+      } catch {
+        // Defaults safely to /onboarding which checks completion state as well
+      }
     }
 
     return NextResponse.json(

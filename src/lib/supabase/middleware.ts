@@ -193,12 +193,27 @@ export async function updateSupabaseSession(
     return supabaseResponse;
   }
 
-  // Redirect already authenticated & verified learners away from guest login/register pages
+  // Redirect already authenticated & verified users away from guest login/register pages
   if (isGuestOnlyAuthPath(pathname) && isAuthenticated && isEmailVerified) {
-    const onboardingUrl = request.nextUrl.clone();
-    onboardingUrl.pathname = "/onboarding";
-    onboardingUrl.search = "";
-    const redirectResp = NextResponse.redirect(onboardingUrl);
+    let destPath = "/onboarding";
+    if (userId && !transportFallbackUsed) {
+      try {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", userId)
+          .maybeSingle();
+        if (prof?.role === "admin") {
+          destPath = "/admin";
+        }
+      } catch {
+        // Fallback safely to /onboarding
+      }
+    }
+    const destUrl = request.nextUrl.clone();
+    destUrl.pathname = destPath;
+    destUrl.search = "";
+    const redirectResp = NextResponse.redirect(destUrl);
     redirectResp.headers.set("Cache-Control", "private, no-store");
     return redirectResp;
   }
