@@ -1,5 +1,7 @@
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
+export const DEFAULT_ALOC_STATION_BASE_URL = "https://dev.aloc.com.ng/api/v1";
+
 export const NIGERIAN_PAST_QUESTION_EXAM_CODES = new Set([
   "WAEC",
   "NECO",
@@ -20,18 +22,19 @@ export const NIGERIAN_CORE_SUBJECTS = [
   "Civic Education",
   "Geography",
   "Christian Religious Studies",
-  "Islamic Studies",
+  "History",
+  "Insurance",
 ] as const;
 
 export const PAST_QUESTION_YEARS: number[] = Array.from(
-  { length: 24 },
-  (_, idx) => 2024 - idx
+  { length: 30 },
+  (_, idx) => 2026 - idx
 );
 
 const SUBJECT_TO_ALOC_SLUG: Record<string, string> = {
-  "use of english": "english",
-  "english language": "english",
-  english: "english",
+  "use of english": "english-language",
+  "english language": "english-language",
+  english: "english-language",
   mathematics: "mathematics",
   "further mathematics": "mathematics",
   physics: "physics",
@@ -39,22 +42,18 @@ const SUBJECT_TO_ALOC_SLUG: Record<string, string> = {
   biology: "biology",
   economics: "economics",
   government: "government",
-  "literature in english": "englishlit",
-  literature: "englishlit",
+  "literature in english": "literature-in-english",
+  literature: "literature-in-english",
   commerce: "commerce",
   "financial accounting": "accounting",
   accounting: "accounting",
-  "civic education": "civiledu",
+  "civic education": "civic-education",
   geography: "geography",
-  "christian religious studies": "crk",
-  crk: "crk",
-  crs: "crk",
-  "islamic studies": "irk",
-  irk: "irk",
-  irs: "irk",
+  "christian religious studies": "christian-religious-studies",
+  crk: "christian-religious-studies",
+  crs: "christian-religious-studies",
   history: "history",
   insurance: "insurance",
-  "current affairs": "currentaffairs",
 };
 
 const SUPERSCRIPT_DIGITS: Record<string, string> = {
@@ -70,6 +69,7 @@ const SUPERSCRIPT_DIGITS: Record<string, string> = {
   "9": "⁹",
   "+": "⁺",
   "-": "⁻",
+  "−": "⁻",
 };
 
 const SUBSCRIPT_DIGITS: Record<string, string> = {
@@ -98,11 +98,12 @@ export function resolveAlocSubjectSlug(subjectName: string): string | null {
 export function cleanAlocQuestionHtml(raw: unknown): string {
   if (raw === null || raw === undefined) return "";
   let s = String(raw);
+  s = s.replace(/<\s*math[\s\S]*?<\s*\/math\s*>/gi, " ");
   s = s.replace(/<\s*br\s*\/?>/gi, "\n");
   s = s.replace(/<\s*\/p\s*>/gi, "\n");
   s = s.replace(/<\s*sup\s*>(.*?)<\s*\/sup\s*>/gi, (_m, inner: string) => {
     const trimmed = inner.trim();
-    if (/^[0-9+-]+$/.test(trimmed)) {
+    if (/^[0-9+\-−]+$/.test(trimmed)) {
       return trimmed
         .split("")
         .map((c) => SUPERSCRIPT_DIGITS[c] || c)
@@ -137,6 +138,10 @@ export function cleanAlocQuestionHtml(raw: unknown): string {
     .replace(/&ge;/gi, "≥")
     .replace(/&ne;/gi, "≠")
     .replace(/&rarr;/gi, "→")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex) => {
+      const n = parseInt(hex, 16);
+      return Number.isFinite(n) ? String.fromCodePoint(n) : "";
+    })
     .replace(/&#(\d+);/g, (_m, code) => {
       const n = Number(code);
       return Number.isFinite(n) ? String.fromCodePoint(n) : "";
@@ -170,6 +175,8 @@ export interface PastQuestionsConnectorResponse {
   skippedDuplicates?: number;
   availableCount?: number;
   fromCache?: boolean;
+  creditsRemaining?: number | null;
+  tier?: string | null;
   sampleExamYear?: string | number | null;
   sampleExamType?: string | null;
 }

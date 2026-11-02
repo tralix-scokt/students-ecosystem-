@@ -198,15 +198,19 @@ describe("Admin Login Routing & Executive Governance Command Center", () => {
     });
   });
 
-  it("maps Nigerian exam subjects & sanitizes ALOC HTML past questions cleanly", () => {
-    expect(resolveAlocSubjectSlug("Use of English")).toBe("english");
-    expect(resolveAlocSubjectSlug("Literature in English")).toBe("englishlit");
+  it("maps Nigerian exam subjects & sanitizes ALOC Station HTML/MathML past questions cleanly", () => {
+    expect(resolveAlocSubjectSlug("Use of English")).toBe("english-language");
+    expect(resolveAlocSubjectSlug("Literature in English")).toBe(
+      "literature-in-english"
+    );
     expect(resolveAlocSubjectSlug("Financial Accounting")).toBe("accounting");
-    expect(resolveAlocSubjectSlug("Civic Education")).toBe("civiledu");
-    expect(resolveAlocSubjectSlug("Christian Religious Studies")).toBe("crk");
+    expect(resolveAlocSubjectSlug("Civic Education")).toBe("civic-education");
+    expect(resolveAlocSubjectSlug("Christian Religious Studies")).toBe(
+      "christian-religious-studies"
+    );
 
     const cleaned = cleanAlocQuestionHtml(
-      "<p>Solve <i>x</i><sup>2</sup> + H<sub>2</sub>O at 100&deg;C &times; 2</p>"
+      "<p>Solve <i>x</i><sup>2</sup> + H<sub>2</sub>O at 100&deg;C &times; 2</p><math><mn>2</mn></math>"
     );
     expect(cleaned).toBe("Solve x² + H₂O at 100°C × 2");
   });

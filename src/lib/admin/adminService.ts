@@ -324,9 +324,26 @@ export async function fetchAdminDashboardPayload(): Promise<
       createdAt: String(r.created_at),
     })),
     systemHealth: healthHttp?.health || null,
-    pastQuestionsApi:
-      pqApiRes && pqApiRes.data
-        ? (pqApiRes.data as PastQuestionsApiAdminStatus)
-        : undefined,
+    pastQuestionsApi: (() => {
+      const raw = (pqApiRes?.data ?? null) as Record<string, unknown> | null;
+      if (!raw) return undefined;
+      const counts = (raw.pastQuestionCounts ?? {}) as Record<string, unknown>;
+      const waec = Number(raw.waecPastCount ?? counts.WAEC ?? 0) || 0;
+      const neco = Number(raw.necoPastCount ?? counts.NECO ?? 0) || 0;
+      const jamb = Number(raw.jambPastCount ?? counts.JAMB_UTME ?? 0) || 0;
+      return {
+        configured: Boolean(raw.configured),
+        provider: String(raw.provider ?? raw.providerKey ?? "aloc"),
+        baseUrl: String(raw.baseUrl || "https://dev.aloc.com.ng/api/v1"),
+        maskedToken:
+          typeof raw.maskedToken === "string" ? raw.maskedToken : null,
+        updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : null,
+        waecPastCount: waec,
+        necoPastCount: neco,
+        jambPastCount: jamb,
+        totalPastQuestions:
+          Number(raw.totalPastQuestions ?? waec + neco + jamb) || 0,
+      } satisfies PastQuestionsApiAdminStatus;
+    })(),
   };
 }

@@ -127,7 +127,7 @@ export function AdminPortalClient() {
     useState<PastQuestionsApiAdminStatus>({
       configured: false,
       provider: "aloc",
-      baseUrl: "https://questions.aloc.com.ng/api/v2",
+      baseUrl: "https://dev.aloc.com.ng/api/v1",
       maskedToken: null,
       updatedAt: null,
       waecPastCount: 0,
@@ -470,9 +470,9 @@ export function AdminPortalClient() {
   const handleSaveAndTestAlocToken = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = alocTokenInput.trim();
-    if (trimmed.length < 6) {
+    if (trimmed.length < 8) {
       setStatusBanner(
-        "Please paste your AccessToken from questions.aloc.com.ng first."
+        "Please paste your ALOC Station API key (aloc_...) from aloc.com.ng first."
       );
       return;
     }
@@ -489,13 +489,12 @@ export function AdminPortalClient() {
         setAlocTokenInput("");
         setStatusBanner(
           testRes.message ||
-            "ALOC Past-Questions API token verified & saved securely on server."
+            "ALOC Station Past-Questions API key verified & saved securely on server."
         );
         await reloadAdmin();
         return;
       }
 
-      // If live verify had a temporary upstream error, still allow saving via audited RPC if requested
       const supabase = createBrowserSupabaseClient();
       if (supabase) {
         await supabase.rpc("admin_save_past_questions_api_config", {
@@ -504,7 +503,7 @@ export function AdminPortalClient() {
         await reloadAdmin();
       }
       setStatusBanner(
-        `Saved token to server vault, though live test reported: ${testRes.error || "Check token validity on questions.aloc.com.ng."}`
+        `Saved key to server vault, though live test reported: ${testRes.error || "Check API key validity on aloc.com.ng."}`
       );
     } finally {
       setSavingAlocToken(false);
@@ -1492,22 +1491,22 @@ export function AdminPortalClient() {
                     >
                       {pastQuestionsApi.configured
                         ? `Connected (${pastQuestionsApi.maskedToken || "Active"})`
-                        : "Awaiting ALOC AccessToken"}
+                        : "Awaiting ALOC Station Key"}
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-slate-300">
                     Connects your CBT Exam Center to{" "}
                     <a
-                      href="https://questions.aloc.com.ng"
+                      href="https://aloc.com.ng"
                       target="_blank"
                       rel="noreferrer"
                       className="font-semibold text-electric-300 underline hover:text-electric-200"
                     >
-                      questions.aloc.com.ng
+                      ALOC Station (aloc.com.ng)
                     </a>{" "}
-                    (15,000+ indexed JAMB, WAEC &amp; NECO past questions by
-                    subject and year). Your token is locked inside a forced-RLS
-                    server vault and never sent to browsers.
+                    (13,800+ curriculum-aligned JAMB, WAEC &amp; NECO past
+                    questions across 1988–2026). Your API key is locked inside a
+                    forced-RLS server vault and never sent to browsers.
                   </p>
                 </div>
 
@@ -1540,19 +1539,19 @@ export function AdminPortalClient() {
                   className="space-y-2.5 rounded-xl border border-white/10 bg-obsidian-950/85 p-4 lg:col-span-5"
                 >
                   <p className="text-xs font-bold text-white">
-                    1. Connect or Rotate ALOC AccessToken
+                    1. Connect or Rotate ALOC Station API Key
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    Sign up free at{" "}
+                    Manage your API key at{" "}
                     <a
-                      href="https://questions.aloc.com.ng"
+                      href="https://aloc.com.ng"
                       target="_blank"
                       rel="noreferrer"
                       className="text-electric-300 underline"
                     >
-                      questions.aloc.com.ng
+                      aloc.com.ng
                     </a>
-                    , copy your <code>AccessToken</code>, and paste it here:
+                    , copy your <code>aloc_...</code> key, and paste it here:
                   </p>
                   <input
                     type="password"
@@ -1560,8 +1559,8 @@ export function AdminPortalClient() {
                     onChange={(e) => setAlocTokenInput(e.target.value)}
                     placeholder={
                       pastQuestionsApi.configured
-                        ? `Saved (${pastQuestionsApi.maskedToken}) — paste new token to update`
-                        : "Paste ALOC AccessToken (e.g. ALOC-xxxxxxxx)..."
+                        ? `Connected (${pastQuestionsApi.maskedToken}) — paste new key to rotate`
+                        : "Paste ALOC Station API key (aloc_xxxxxxxx)..."
                     }
                     className="w-full rounded-xl border border-white/15 bg-obsidian-900 px-3 py-2 text-xs text-white placeholder:text-slate-500"
                   />
