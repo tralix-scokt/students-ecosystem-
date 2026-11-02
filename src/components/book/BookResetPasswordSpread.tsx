@@ -13,10 +13,9 @@ import {
   KeyRound,
   Loader2,
   Lock,
-  ShieldCheck,
 } from "lucide-react";
-import { BrandLogo } from "@/components/brand/BrandLogo";
-import { BOOK_COPY, BRAND_IDENTITY } from "@/data/ecosystemContent";
+import { BookEducationQuotePage } from "@/components/book/BookEducationQuotePage";
+import { BOOK_COPY } from "@/data/ecosystemContent";
 import { completePasswordReset } from "@/lib/auth/authService";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { evaluatePasswordRequirements } from "@/lib/validation/authValidation";
@@ -56,7 +55,6 @@ export function BookResetPasswordSpread() {
 
     async function inspectRecoverySession() {
       if (!supabase) return;
-      // Support direct #access_token=...&refresh_token=... hash if GoTrue redirected directly here
       if (
         typeof window !== "undefined" &&
         window.location.hash.includes("access_token=")
@@ -77,7 +75,6 @@ export function BookResetPasswordSpread() {
         }
       }
 
-      // Support ?code=... if redirected directly
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const code = params.get("code");
@@ -122,7 +119,7 @@ export function BookResetPasswordSpread() {
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col justify-between overflow-x-clip bg-obsidian-950">
+    <div className="relative flex min-h-screen flex-col justify-between overflow-x-clip bg-[#020510]">
       <div
         className="pointer-events-none fixed inset-0 ecosystem-grid-bg"
         aria-hidden="true"
@@ -133,10 +130,10 @@ export function BookResetPasswordSpread() {
       />
 
       <header className="relative z-40 border-b border-white/[0.06] bg-obsidian-950/70 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <Link
             href="/login"
-            className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-slate-800 bg-obsidian-900/90 px-3.5 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-electric-400/50 hover:text-electric-300"
+            className="inline-flex min-h-[38px] items-center gap-2 rounded-xl border border-slate-800 bg-obsidian-900/90 px-3.5 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-electric-400/50 hover:text-electric-300"
           >
             <ArrowLeft
               className="h-3.5 w-3.5 text-electric-400"
@@ -144,7 +141,9 @@ export function BookResetPasswordSpread() {
             />
             <span>Return to Login</span>
           </Link>
-          <BrandLogo size="sm" showSubtitle={false} />
+          <span className="text-xs font-semibold text-slate-300">
+            Students Ecosystem
+          </span>
         </div>
       </header>
 
@@ -152,26 +151,43 @@ export function BookResetPasswordSpread() {
         id="main-content"
         className="relative z-10 flex flex-1 flex-col items-center justify-center px-3 py-8 xs:px-5 sm:px-6 sm:py-12"
       >
-        <div className="w-full max-w-[1020px]">
-          <div className="relative rounded-2xl border border-electric-400/30 hardcover-surface p-2 sm:p-3 shadow-book-open">
+        <div className="w-full max-w-[1040px]">
+          <div className="relative rounded-[22px] border border-electric-400/35 hardcover-surface p-2.5 sm:p-4 shadow-book-open">
             <div
               aria-hidden="true"
-              className="paper-fore-edge-vertical pointer-events-none absolute inset-y-4 left-1.5 hidden w-2 rounded-l-sm book:block"
+              className="paper-fore-edge-vertical pointer-events-none absolute inset-y-4 left-1.5 hidden w-2.5 rounded-l-sm book:block"
             />
             <div
               aria-hidden="true"
-              className="paper-fore-edge-vertical pointer-events-none absolute inset-y-4 right-1.5 w-2 rounded-r-sm"
+              className="paper-fore-edge-vertical pointer-events-none absolute inset-y-4 right-1.5 w-2.5 rounded-r-sm"
             />
             <div
               aria-hidden="true"
-              className="paper-fore-edge-horizontal pointer-events-none absolute bottom-1.5 inset-x-4 h-2 rounded-b-sm"
+              className="paper-fore-edge-horizontal pointer-events-none absolute bottom-1.5 inset-x-5 h-2.5 rounded-b-sm"
             />
 
-            <div className="relative grid grid-cols-1 book:grid-cols-2 book:min-h-[560px]">
-              {/* LEFT PAGE: Set & Confirm New Password */}
+            <div className="relative grid grid-cols-1 book:grid-cols-2 book:min-h-[580px]">
+              {/* LEFT PAGE: Educational Quote */}
+              <section
+                aria-label="Open book left page"
+                className="book-interior-page-left relative z-10 flex flex-col justify-between rounded-t-2xl border border-slate-800/90 p-5 xs:p-6 sm:p-8 book:rounded-l-2xl book:rounded-tr-none book:pl-10 book:pr-9"
+              >
+                <BookEducationQuotePage mode="recovery" />
+              </section>
+
+              {/* CENTER SPINE CREASE */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-1/2 z-20 hidden w-9 -translate-x-1/2 items-center justify-center book:flex"
+              >
+                <div className="h-full w-full bg-gradient-to-r from-transparent via-[#01040c] to-transparent" />
+                <div className="absolute inset-y-2 w-[2px] bg-gradient-to-b from-electric-400/50 via-fuchsia-400/60 to-electric-400/50" />
+              </div>
+
+              {/* RIGHT PAGE: Set & Confirm New Password */}
               <section
                 aria-label="Set new password page"
-                className="book-interior-page-left relative z-10 flex flex-col justify-between rounded-t-xl border border-slate-800/90 p-5 xs:p-6 sm:p-8 book:rounded-l-xl book:rounded-tr-none book:pl-9 book:pr-8"
+                className="book-interior-page-right relative z-10 flex flex-col justify-between rounded-b-2xl border border-slate-800/90 p-5 xs:p-6 sm:p-8 book:rounded-r-2xl book:rounded-bl-none book:pl-9 book:pr-10"
               >
                 <div>
                   <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
@@ -179,7 +195,7 @@ export function BookResetPasswordSpread() {
                       {BOOK_COPY.resetPasswordLeft.chapter}
                     </span>
                     <span className="font-serif text-xs italic text-slate-400">
-                      Recovery
+                      Page II
                     </span>
                   </div>
 
@@ -413,7 +429,6 @@ export function BookResetPasswordSpread() {
                         )}
                       </div>
 
-                      {/* Password Requirements Checklist */}
                       <div className="rounded-xl border border-slate-800/85 bg-obsidian-950/55 p-3">
                         <div className="grid grid-cols-4 gap-1.5">
                           {[1, 2, 3, 4].map((seg) => (
@@ -492,64 +507,9 @@ export function BookResetPasswordSpread() {
                       href="/login"
                       className="font-medium text-electric-300 hover:underline"
                     >
-                      ← Return to Login
+                      &larr; Return to Login
                     </Link>
-                    <span className="font-serif italic">R-01</span>
-                  </div>
-                </div>
-              </section>
-
-              {/* CENTER SPINE CREASE */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 left-1/2 z-20 hidden w-8 -translate-x-1/2 items-center justify-center book:flex"
-              >
-                <div className="h-full w-full bg-gradient-to-r from-transparent via-obsidian-950/95 to-transparent" />
-                <div className="absolute inset-y-2 w-[2px] bg-gradient-to-b from-electric-400/45 via-aura-400/55 to-electric-400/45" />
-              </div>
-
-              {/* RIGHT PAGE: Security Charter */}
-              <section
-                aria-label="Recovery guidance page"
-                className="book-interior-page-right relative z-10 flex flex-col justify-between rounded-b-xl border border-slate-800/90 p-5 xs:p-6 sm:p-8 book:rounded-r-xl book:rounded-bl-none book:pl-8 book:pr-9"
-              >
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                  <span className="font-display text-[10px] font-semibold uppercase tracking-[0.22em] text-aura-300">
-                    {BOOK_COPY.resetPasswordRight.chapter}
-                  </span>
-                  <span className="font-serif text-xs italic text-slate-400">
-                    Security
-                  </span>
-                </div>
-
-                <div className="my-auto py-6">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-electric-400/30 bg-electric-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-electric-300">
-                    <ShieldCheck
-                      className="h-3.5 w-3.5 text-electric-400"
-                      aria-hidden="true"
-                    />
-                    <span>Zero Plaintext Storage</span>
-                  </div>
-
-                  <h2 className="mt-5 font-display text-2xl font-bold uppercase leading-snug tracking-[0.08em] text-white">
-                    {BOOK_COPY.resetPasswordRight.heading}
-                  </h2>
-
-                  <blockquote className="mt-5 rounded-2xl border border-slate-700/75 bg-obsidian-950/65 p-5">
-                    <p className="font-serif text-xl italic leading-relaxed text-slate-100">
-                      {BOOK_COPY.resetPasswordRight.motivationalMessage}
-                    </p>
-                  </blockquote>
-
-                  <p className="mt-5 text-sm leading-relaxed text-slate-300">
-                    {BOOK_COPY.resetPasswordRight.supportingText}
-                  </p>
-                </div>
-
-                <div className="border-t border-slate-800/80 pt-4">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <span>{BRAND_IDENTITY.engine} • CREDENTIAL GUARD</span>
-                    <span className="font-serif italic">R-02</span>
+                    <span className="font-serif italic">02</span>
                   </div>
                 </div>
               </section>

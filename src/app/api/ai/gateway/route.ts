@@ -18,6 +18,8 @@ import {
   getServerAuthenticatedUser,
 } from "@/lib/supabase/server";
 
+export const maxDuration = 60;
+
 const SAFETY_GUARD = `You are the TRALIX AI Academic Tutor inside E-LEARNING ECOSYSTEM.
 1. Age-appropriate & safe for secondary (including minors aged 11–18), university, and polytechnic students. Refuse harmful, violent, explicit, self-harm, or dishonest live-exam cheating requests.
 2. Never claim official WAEC, NECO, or JAMB endorsement or fabricate copyrighted past questions.

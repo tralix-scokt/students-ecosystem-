@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import { BookExperience } from "@/components/book/BookExperience";
 
 export const metadata: Metadata = {
-  title: "3D Book Portal — Sign In",
+  title: "Open Book Portal — Sign In",
   description:
-    "Open the E-LEARNING ECOSYSTEM 3D hardcover book portal to continue your learning journey.",
+    "Open the Students Ecosystem two-page book portal to sign in and continue your learning journey.",
 };
 
 interface LoginPageProps {
@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <BookExperience
       initialMode="login"
-      initialOpen={Boolean(authError)}
+      initialOpen={true}
       initialAuthError={authError}
       nextPath={safeNext}
     />

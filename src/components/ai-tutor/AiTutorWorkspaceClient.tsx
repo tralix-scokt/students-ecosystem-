@@ -5,22 +5,18 @@ import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   BookmarkPlus,
-  Bot,
   Check,
   Copy,
   Edit3,
-  Eye,
-  GraduationCap,
   History,
   Loader2,
   MessageSquarePlus,
   RefreshCw,
   Send,
-  ShieldAlert,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import { TutorRichMessageRenderer } from "@/components/ai-tutor/TutorRichMessageRenderer";
+import { StudentsEcosystemCrest } from "@/components/book/StudentsEcosystemCrest";
 import { DashboardErrorState } from "@/components/dashboard/DashboardErrorState";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
@@ -45,13 +41,6 @@ import { formatTutorContentForSavedNote } from "@/lib/ai/visualTeaching";
 import { useStudentDashboardData } from "@/lib/dashboard/useStudentDashboardData";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-const QUICK_BASIC_QUESTIONS = [
-  "What is 15% of 240? Show me simply.",
-  "Explain photosynthesis with a labeled diagram.",
-  "What is an atom made of? Show a picture.",
-  "Explain nouns vs verbs with simple examples.",
-];
-
 export function AiTutorWorkspaceClient() {
   const searchParams = useSearchParams();
   const { status, isRetrying, data, errorMessage, retry } =
@@ -65,6 +54,7 @@ export function AiTutorWorkspaceClient() {
   >(null);
   const [messages, setMessages] = useState<TutorMessageRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
 
   const [learningMode, setLearningMode] =
     useState<TutorLearningMode>("explain_topic");
@@ -78,18 +68,15 @@ export function AiTutorWorkspaceClient() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
-  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
 
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
-  const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const querySubject = searchParams.get("subject") || "";
-  const queryTopic = searchParams.get("topic") || "";
   const queryCourse = searchParams.get("course") || "";
   const queryLesson = searchParams.get("lesson") || "";
 
@@ -114,17 +101,12 @@ export function AiTutorWorkspaceClient() {
           data?.academicProfile?.selected_subjects?.[0] ||
           ""
       );
-      if (queryTopic) {
-        setPromptInput(
-          `Teach me "${queryTopic}" like a real classroom teacher with a clear diagram and worked example.`
-        );
-      }
       setLoadingHistory(false);
     })();
     return () => {
       active = false;
     };
-  }, [data?.academicProfile?.selected_subjects, querySubject, queryTopic]);
+  }, [data?.academicProfile?.selected_subjects, querySubject]);
 
   const handleSelectConversation = useCallback(
     async (conv: TutorConversationRecord) => {
@@ -132,6 +114,7 @@ export function AiTutorWorkspaceClient() {
       setLearningMode(conv.learningMode);
       if (conv.subject) setSelectedSubject(conv.subject);
       setSendError(null);
+      setShowSidebar(false);
       setLoadingHistory(true);
       const loaded = await fetchConversationMessages(conv.id);
       setMessages(loaded);
@@ -143,7 +126,6 @@ export function AiTutorWorkspaceClient() {
   const handleNewConversation = useCallback(() => {
     setActiveConversationId(null);
     setMessages([]);
-    setSuggestedQuestions([]);
     setSendError(null);
     setLastFailedPrompt(null);
   }, []);
@@ -223,9 +205,6 @@ export function AiTutorWorkspaceClient() {
 
       const convId = res.conversationId || activeConversationId || "session";
       setActiveConversationId(convId);
-      if (typeof res.remainingDailyQuota === "number") {
-        setRemainingQuota(res.remainingDailyQuota);
-      }
 
       const assistantMsg: TutorMessageRecord = {
         id: `msg-ai-${Date.now()}`,
@@ -241,7 +220,6 @@ export function AiTutorWorkspaceClient() {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-      setSuggestedQuestions(res.suggestedQuestions || []);
 
       const refreshed = await fetchTutorWorkspaceBootstrap();
       setConversations(refreshed.conversations);
@@ -291,8 +269,8 @@ export function AiTutorWorkspaceClient() {
       const { error } = await supabase.from("student_notes").insert({
         user_id: user.id,
         title: `${selectedSubject || "Study"} — ${modeLabel} Note`,
-        description: "Saved from TRALIX AI Tutor (AI-generated study note)",
-        content: `[AI-Generated Study Note — Verify formulas against course material]\n\n${readableContent}`,
+        description: "Saved from AI Tutor",
+        content: `[AI-Generated Study Note]\n\n${readableContent}`,
         subject: selectedSubject || "General",
         tags: ["ai-tutor", msg.learningMode.replace(/_/g, "-")],
       });
@@ -345,10 +323,6 @@ export function AiTutorWorkspaceClient() {
     );
   }
 
-  const currentModeMeta =
-    TUTOR_LEARNING_MODES.find((m) => m.id === learningMode) ||
-    TUTOR_LEARNING_MODES[0];
-
   return (
     <DashboardShell
       userProfile={data.userProfile}
@@ -358,203 +332,121 @@ export function AiTutorWorkspaceClient() {
       publishedCourses={data.publishedCourses}
       ongoingCourses={data.ongoingCourses}
     >
-      <div className="space-y-6">
-        {/* Header & Honest AI Provenance Notice */}
-        <section className="rounded-2xl border border-white/10 bg-obsidian-900/80 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-electric-400/30 bg-electric-500/10 px-3 py-1 text-xs font-medium text-electric-300">
-                <GraduationCap className="h-3.5 w-3.5" />
-                <span>
-                  TRALIX Classroom Teacher • Visual Diagrams & Pictures • 6 Modes
-                </span>
-              </div>
-              <h1 className="mt-2.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Personalized AI Study Tutor
-              </h1>
-              <p className="mt-1 text-sm text-slate-300">
-                Adapted to your{" "}
-                <span className="font-medium text-electric-300">
-                  {data.academicProfile?.academic_category || "academic"}
-                </span>{" "}
-                pathway. Ask anything from quick basic questions to deep topics
-                explained like a real classroom teacher—with labeled diagrams
-                and illustrated pictures whenever helpful.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              {remainingQuota !== null && (
-                <span className="rounded-xl border border-white/10 bg-obsidian-950/80 px-3 py-2 text-xs text-slate-300">
-                  Daily AI quota remaining:{" "}
-                  <strong className="text-electric-300">{remainingQuota}</strong>
+      <div className="flex h-[calc(100vh-8.5rem)] min-h-[540px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-obsidian-950/90">
+        {/* Clean Minimal Toolbar */}
+        <header className="flex flex-wrap items-center justify-between gap-2.5 border-b border-white/10 bg-obsidian-900/75 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setShowSidebar((prev) => !prev)}
+              aria-label="Toggle saved conversations"
+              aria-expanded={showSidebar}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
+                showSidebar
+                  ? "border-electric-400/50 bg-electric-500/15 text-electric-200"
+                  : "border-white/10 bg-obsidian-950/80 text-slate-300 hover:border-white/20 hover:text-white"
+              }`}
+            >
+              <History className="h-3.5 w-3.5 text-electric-400" />
+              <span>Chats</span>
+              {conversations.length > 0 && (
+                <span className="rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] text-slate-300">
+                  {conversations.length}
                 </span>
               )}
-              <button
-                type="button"
-                onClick={handleNewConversation}
-                className="inline-flex items-center gap-2 rounded-xl bg-electric-500 px-4 py-2.5 text-xs font-semibold text-obsidian-950 transition hover:bg-electric-400"
-              >
-                <MessageSquarePlus className="h-4 w-4" />
-                New Study Chat
-              </button>
-            </div>
+            </button>
+
+            <h1 className="font-display text-base font-bold tracking-tight text-white sm:text-lg">
+              AI Tutor
+            </h1>
           </div>
 
-          <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-200">
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
-            <span>
-              <strong>AI Transparency Notice:</strong> Tutor responses and
-              whiteboard diagrams are{" "}
-              <span className="underline">AI-generated study guidance</span> and
-              are not a substitute for verified syllabus documents or official
-              examiner rulings. Always cross-check critical formulas in your
-              verified Learning Space courses.
-            </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Compact Mode Selector */}
+            <label htmlFor="tutor-mode-select" className="sr-only">
+              Tutor mode
+            </label>
+            <select
+              id="tutor-mode-select"
+              aria-label="Tutor mode"
+              value={learningMode}
+              onChange={(e) =>
+                handleModeOrStyleChange(
+                  e.target.value as TutorLearningMode,
+                  explanationStyle,
+                  selectedSubject
+                )
+              }
+              className="rounded-xl border border-white/10 bg-obsidian-950 px-2.5 py-1.5 text-xs text-slate-200 focus:border-electric-400 focus:outline-none"
+            >
+              {TUTOR_LEARNING_MODES.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.shortLabel}
+                </option>
+              ))}
+            </select>
+
+            {/* Compact Subject Selector */}
+            <label htmlFor="tutor-subject-select" className="sr-only">
+              Subject
+            </label>
+            <select
+              id="tutor-subject-select"
+              aria-label="Subject"
+              value={selectedSubject}
+              onChange={(e) =>
+                handleModeOrStyleChange(
+                  learningMode,
+                  explanationStyle,
+                  e.target.value
+                )
+              }
+              className="rounded-xl border border-white/10 bg-obsidian-950 px-2.5 py-1.5 text-xs text-slate-200 focus:border-electric-400 focus:outline-none"
+            >
+              <option value="">All Subjects</option>
+              {availableSubjects.map((subj) => (
+                <option key={subj} value={subj}>
+                  {subj}
+                </option>
+              ))}
+            </select>
+
+            {/* Compact Visual Aids Selector */}
+            <label htmlFor="tutor-visual-select" className="sr-only">
+              Visual aids
+            </label>
+            <select
+              id="tutor-visual-select"
+              aria-label="Visual aids"
+              value={visualPreference}
+              onChange={(e) =>
+                setVisualPreference(e.target.value as TutorVisualAidPreference)
+              }
+              className="rounded-xl border border-white/10 bg-obsidian-950 px-2.5 py-1.5 text-xs text-slate-200 focus:border-electric-400 focus:outline-none"
+            >
+              <option value="auto">Visuals: Auto</option>
+              <option value="always">Visuals: On</option>
+              <option value="none">Visuals: Off</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={handleNewConversation}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-electric-500 px-3.5 py-1.5 text-xs font-semibold text-obsidian-950 transition hover:bg-electric-400"
+            >
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+              <span>New Chat</span>
+            </button>
           </div>
-        </section>
+        </header>
 
-        {/* 6 Dedicated Learning Modes Selector */}
-        <section aria-label="AI Tutor Learning Modes">
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
-            {TUTOR_LEARNING_MODES.map((mode) => {
-              const active = mode.id === learningMode;
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() =>
-                    handleModeOrStyleChange(
-                      mode.id,
-                      explanationStyle,
-                      selectedSubject
-                    )
-                  }
-                  className={`flex flex-col items-start rounded-xl border p-3 text-left transition ${
-                    active
-                      ? "border-electric-400 bg-electric-500/15 text-white shadow-sm"
-                      : "border-white/10 bg-obsidian-900/60 text-slate-300 hover:border-white/20 hover:text-white"
-                  }`}
-                >
-                  <span className="text-xs font-semibold">{mode.label}</span>
-                  <span className="mt-1 line-clamp-2 text-[11px] text-slate-400">
-                    {mode.description}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Main Workspace Split: Conversation History + Active Tutor Chat */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* Saved Conversations Sidebar */}
-          <aside className="rounded-2xl border border-white/10 bg-obsidian-900/75 p-4 lg:col-span-4 xl:col-span-3">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                <History className="h-4 w-4 text-electric-400" />
-                <span>Saved Conversations</span>
-              </div>
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-300">
-                {conversations.length}
-              </span>
-            </div>
-
-            {/* Subject, Style & Visual Aids Controls */}
-            <div className="mt-3 space-y-2.5 border-b border-white/10 pb-3.5">
-              <div>
-                <label
-                  htmlFor="tutor-subject-select"
-                  className="block text-[11px] font-medium uppercase tracking-wider text-slate-400"
-                >
-                  Subject Context
-                </label>
-                <select
-                  id="tutor-subject-select"
-                  value={selectedSubject}
-                  onChange={(e) =>
-                    handleModeOrStyleChange(
-                      learningMode,
-                      explanationStyle,
-                      e.target.value
-                    )
-                  }
-                  className="mt-1 w-full rounded-lg border border-white/15 bg-obsidian-950 px-2.5 py-2 text-xs text-white focus:border-electric-400 focus:outline-none"
-                >
-                  <option value="">General / All Subjects & Basic Q&A</option>
-                  {availableSubjects.map((subj) => (
-                    <option key={subj} value={subj}>
-                      {subj}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="tutor-style-select"
-                  className="block text-[11px] font-medium uppercase tracking-wider text-slate-400"
-                >
-                  Explanation Depth
-                </label>
-                <select
-                  id="tutor-style-select"
-                  value={explanationStyle}
-                  onChange={(e) =>
-                    handleModeOrStyleChange(
-                      learningMode,
-                      e.target.value as TutorExplanationStyle,
-                      selectedSubject
-                    )
-                  }
-                  className="mt-1 w-full rounded-lg border border-white/15 bg-obsidian-950 px-2.5 py-2 text-xs text-white focus:border-electric-400 focus:outline-none"
-                >
-                  <option value="step_by_step">
-                    Teacher Step-by-Step Breakdown
-                  </option>
-                  <option value="standard">Balanced Everyday + Academic</option>
-                  <option value="concise">Quick & Direct Answer</option>
-                  <option value="exam_focused">Exam-Focused Technique</option>
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="tutor-visual-select"
-                  className="block text-[11px] font-medium uppercase tracking-wider text-slate-400"
-                >
-                  Diagrams & Pictures
-                </label>
-                <select
-                  id="tutor-visual-select"
-                  value={visualPreference}
-                  onChange={(e) =>
-                    setVisualPreference(
-                      e.target.value as TutorVisualAidPreference
-                    )
-                  }
-                  className="mt-1 w-full rounded-lg border border-white/15 bg-obsidian-950 px-2.5 py-2 text-xs text-white focus:border-electric-400 focus:outline-none"
-                >
-                  <option value="auto">
-                    Auto — Draw Diagrams When Helpful
-                  </option>
-                  <option value="always">
-                    Always Include Diagram / Picture
-                  </option>
-                  <option value="none">Text Only (No Diagrams)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Conversation History List */}
-            <div className="mt-3 max-h-[380px] space-y-2 overflow-y-auto pr-1">
-              {conversations.length === 0 ? (
-                <p className="py-6 text-center text-xs text-slate-400">
-                  No saved tutor conversations yet. Ask your first question to
-                  save history automatically.
-                </p>
-              ) : (
-                conversations.map((conv) => {
+        {/* Main Workspace Split */}
+        <div className="relative flex min-h-0 flex-1">
+          {/* Collapsible Saved Chats Drawer */}
+          {showSidebar && (
+            <aside className="w-64 shrink-0 overflow-y-auto border-r border-white/10 bg-obsidian-900/90 p-3 sm:w-72">
+              <div className="space-y-1.5">
+                {conversations.map((conv) => {
                   const isSelected = conv.id === activeConversationId;
                   const isEditing = editingConvId === conv.id;
                   return (
@@ -602,10 +494,6 @@ export function AiTutorWorkspaceClient() {
                             <p className="truncate text-xs font-medium text-white">
                               {conv.title}
                             </p>
-                            <p className="mt-0.5 text-[11px] text-slate-400">
-                              {conv.subject || "General"} •{" "}
-                              {conv.learningMode.replace(/_/g, " ")}
-                            </p>
                           </button>
                           <div className="flex shrink-0 items-center gap-1">
                             <button
@@ -632,215 +520,140 @@ export function AiTutorWorkspaceClient() {
                       )}
                     </div>
                   );
-                })
-              )}
-            </div>
-          </aside>
+                })}
+              </div>
+            </aside>
+          )}
 
-          {/* Active Conversational Tutor Panel */}
-          <section className="flex min-h-[560px] flex-col rounded-2xl border border-white/10 bg-obsidian-900/80 lg:col-span-8 xl:col-span-9">
-            {/* Chat Thread */}
-            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+          {/* Clean Distraction-Free Chat Canvas */}
+          <section className="flex min-w-0 flex-1 flex-col">
+            <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
               {loadingHistory && activeConversationId ? (
-                <div className="flex items-center justify-center py-16 text-sm text-slate-300">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin text-electric-400" />
-                  Loading conversation messages...
+                <div className="flex h-full items-center justify-center">
+                  <Loader2
+                    className="h-5 w-5 animate-spin text-electric-400"
+                    aria-label="Loading conversation"
+                  />
                 </div>
               ) : messages.length === 0 ? (
-                <div className="space-y-5 py-4">
-                  <div className="rounded-2xl border border-electric-400/20 bg-obsidian-950/70 p-5">
-                    <div className="flex items-center gap-2 text-electric-300">
-                      <Sparkles className="h-4 w-4" />
-                      <span className="text-xs font-semibold uppercase tracking-wider">
-                        {currentModeMeta.label} • Classroom Teacher Mode
-                      </span>
-                    </div>
-                    <h2 className="mt-1.5 text-lg font-semibold text-white">
-                      What would you like me to teach or explain in{" "}
-                      {selectedSubject || "your studies"} today?
-                    </h2>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-300">
-                      {currentModeMeta.description} Ask a basic everyday
-                      question, request a step-by-step whiteboard lesson, or ask
-                      me to draw a labeled diagram or picture.
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Suggested Teacher Lessons & Visual Prompts
-                    </p>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                      {currentModeMeta.starterPrompts.map((starter) => (
-                        <button
-                          key={starter}
-                          type="button"
-                          onClick={() => submitPrompt(starter)}
-                          disabled={sending}
-                          className="rounded-xl border border-white/10 bg-obsidian-950/80 p-3.5 text-left text-xs text-slate-200 transition hover:border-electric-400/50 hover:text-white"
-                        >
-                          {starter}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      Or Try a Quick Basic Question
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {QUICK_BASIC_QUESTIONS.map((basic) => (
-                        <button
-                          key={basic}
-                          type="button"
-                          onClick={() => submitPrompt(basic)}
-                          disabled={sending}
-                          className="rounded-full border border-white/10 bg-obsidian-950/70 px-3 py-1.5 text-xs text-slate-300 transition hover:border-electric-400/45 hover:text-electric-200"
-                        >
-                          {basic}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                /* Pure Clean Empty Canvas — Zero Text, Zero Made-Up Prompts */
+                <div className="flex h-full items-center justify-center">
+                  <StudentsEcosystemCrest
+                    size="lg"
+                    className="opacity-70 transition-opacity hover:opacity-95"
+                  />
                 </div>
               ) : (
-                messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${
-                      msg.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
+                <div className="mx-auto max-w-3xl space-y-5">
+                  {messages.map((msg) => (
                     <div
-                      className={`rounded-2xl p-4 text-sm ${
-                        msg.role === "user"
-                          ? "max-w-2xl border border-electric-400/40 bg-electric-500/20 text-white"
-                          : "w-full max-w-4xl border border-white/10 bg-obsidian-950/90 text-slate-100"
+                      key={msg.id}
+                      className={`flex ${
+                        msg.role === "user" ? "justify-end" : "justify-start"
                       }`}
                     >
-                      {msg.role === "assistant" && (
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2.5">
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-aura-500/15 px-2.5 py-0.5 text-[11px] font-medium text-aura-300">
-                            <Bot className="h-3 w-3" />
-                            AI-Generated Study Response • Not Official Syllabus
-                            Material
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleCopyMessage(msg.id, msg.content)
-                              }
-                              className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/10 hover:text-white"
-                            >
-                              {copiedId === msg.id ? (
-                                <>
-                                  <Check className="h-3 w-3 text-emerald-400" />
-                                  Copied
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="h-3 w-3" />
-                                  Copy
-                                </>
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSaveReplyToNotes(msg)}
-                              className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/10 hover:text-white"
-                            >
-                              {savedNoteId === msg.id ? (
-                                <>
-                                  <Check className="h-3 w-3 text-emerald-400" />
-                                  Saved to Notes
-                                </>
-                              ) : (
-                                <>
-                                  <BookmarkPlus className="h-3 w-3" />
-                                  Save to Notes
-                                </>
-                              )}
-                            </button>
+                      <div
+                        className={`rounded-2xl p-4 text-sm ${
+                          msg.role === "user"
+                            ? "max-w-xl border border-electric-400/40 bg-electric-500/15 text-white"
+                            : "w-full border border-white/10 bg-obsidian-900/85 text-slate-100"
+                        }`}
+                      >
+                        {msg.role === "assistant" && (
+                          <div className="mb-3 flex items-center justify-between gap-2 border-b border-white/10 pb-2">
+                            <span className="text-[11px] font-medium text-electric-300">
+                              AI Tutor
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopyMessage(msg.id, msg.content)
+                                }
+                                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/10 hover:text-white"
+                              >
+                                {copiedId === msg.id ? (
+                                  <>
+                                    <Check className="h-3 w-3 text-emerald-400" />
+                                    <span>Copied</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-3 w-3" />
+                                    <span>Copy</span>
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveReplyToNotes(msg)}
+                                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/10 hover:text-white"
+                              >
+                                {savedNoteId === msg.id ? (
+                                  <>
+                                    <Check className="h-3 w-3 text-emerald-400" />
+                                    <span>Saved</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <BookmarkPlus className="h-3 w-3" />
+                                    <span>Save</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {msg.role === "assistant" ? (
-                        <TutorRichMessageRenderer
-                          content={msg.content}
-                          allowVisualFallback={visualPreference !== "none"}
-                        />
-                      ) : (
-                        <div className="whitespace-pre-wrap leading-relaxed">
-                          {msg.content}
-                        </div>
+                        {msg.role === "assistant" ? (
+                          <TutorRichMessageRenderer
+                            content={msg.content}
+                            allowVisualFallback={visualPreference !== "none"}
+                          />
+                        ) : (
+                          <div className="whitespace-pre-wrap leading-relaxed">
+                            {msg.content}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {sending && (
+                    <div className="flex items-center gap-2 rounded-xl border border-electric-400/20 bg-obsidian-900/70 px-4 py-3 text-xs text-electric-300">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Thinking...</span>
+                    </div>
+                  )}
+
+                  {sendError && (
+                    <div
+                      role="alert"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3.5 text-xs text-red-200"
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-red-300" />
+                        <span>{sendError}</span>
+                      </div>
+                      {lastFailedPrompt && (
+                        <button
+                          type="button"
+                          onClick={() => submitPrompt(lastFailedPrompt)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/20 px-3 py-1.5 font-semibold text-red-100 hover:bg-red-500/30"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          <span>Retry</span>
+                        </button>
                       )}
                     </div>
-                  </div>
-                ))
-              )}
-
-              {sending && (
-                <div className="flex items-center gap-2.5 rounded-xl border border-electric-400/20 bg-obsidian-950/70 p-4 text-xs text-electric-300">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>
-                    TRALIX Teacher is writing your{" "}
-                    {currentModeMeta.shortLabel.toLowerCase()} lesson
-                    {visualPreference !== "none"
-                      ? " & preparing visual aids if needed..."
-                      : "..."}
-                  </span>
-                </div>
-              )}
-
-              {sendError && (
-                <div
-                  role="alert"
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3.5 text-xs text-red-200"
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-300" />
-                    <span>{sendError}</span>
-                  </div>
-                  {lastFailedPrompt && (
-                    <button
-                      type="button"
-                      onClick={() => submitPrompt(lastFailedPrompt)}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/20 px-3 py-1.5 font-semibold text-red-100 hover:bg-red-500/30"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                      Retry
-                    </button>
                   )}
+
+                  <div ref={messagesEndRef} />
                 </div>
               )}
-
-              {suggestedQuestions.length > 0 && !sending && (
-                <div className="pt-2">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Suggested Follow-up Questions
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {suggestedQuestions.map((q) => (
-                      <button
-                        key={q}
-                        type="button"
-                        onClick={() => submitPrompt(q)}
-                        className="rounded-full border border-electric-400/30 bg-electric-500/10 px-3 py-1.5 text-left text-xs text-electric-200 transition hover:bg-electric-500/20"
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
             </div>
 
-            {/* Composer */}
+            {/* Clean Minimal Composer Bar */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -848,48 +661,16 @@ export function AiTutorWorkspaceClient() {
                   submitPrompt(promptInput);
                 }
               }}
-              className="border-t border-white/10 bg-obsidian-950/70 p-4"
+              className="border-t border-white/10 bg-obsidian-900/65 px-4 py-3.5 sm:px-8"
             >
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
-                <span>
-                  Ask any basic question or full topic—press{" "}
-                  <kbd className="rounded border border-white/15 bg-obsidian-900 px-1.5 py-0.5 text-[10px] text-slate-300">
-                    Enter
-                  </kbd>{" "}
-                  to send,{" "}
-                  <kbd className="rounded border border-white/15 bg-obsidian-900 px-1.5 py-0.5 text-[10px] text-slate-300">
-                    Shift + Enter
-                  </kbd>{" "}
-                  for a new line.
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setVisualPreference((prev) =>
-                      prev === "always" ? "auto" : "always"
-                    )
-                  }
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium transition ${
-                    visualPreference === "always"
-                      ? "border-electric-400 bg-electric-500/20 text-electric-200"
-                      : "border-white/15 bg-obsidian-900 text-slate-300 hover:border-electric-400/40 hover:text-white"
-                  }`}
-                >
-                  <Eye className="h-3 w-3" />
-                  {visualPreference === "always"
-                    ? "Always Draw Diagram: ON"
-                    : "Draw Diagram When Helpful"}
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end">
+              <div className="mx-auto flex max-w-3xl items-end gap-2.5">
                 <div className="flex-1">
                   <label htmlFor="ai-tutor-prompt" className="sr-only">
                     Ask your academic question
                   </label>
                   <textarea
                     id="ai-tutor-prompt"
-                    rows={2}
+                    rows={1}
                     value={promptInput}
                     onChange={(e) => setPromptInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -900,15 +681,16 @@ export function AiTutorWorkspaceClient() {
                         }
                       }
                     }}
-                    placeholder={`Ask any basic question or ${currentModeMeta.label.toLowerCase()} in ${selectedSubject || "any subject"}...`}
+                    placeholder="Ask a question..."
                     disabled={sending}
-                    className="w-full resize-none rounded-xl border border-white/15 bg-obsidian-900 px-3.5 py-2.5 text-sm text-white placeholder-slate-400 focus:border-electric-400 focus:outline-none"
+                    className="min-h-[46px] max-h-36 w-full resize-none rounded-2xl border border-white/15 bg-obsidian-950 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-electric-400 focus:outline-none"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={sending || promptInput.trim().length < 2}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-electric-500 px-5 py-3 text-sm font-semibold text-obsidian-950 transition hover:bg-electric-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Send"
+                  className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-electric-500 px-5 py-3 text-sm font-semibold text-obsidian-950 transition hover:bg-electric-400 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {sending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

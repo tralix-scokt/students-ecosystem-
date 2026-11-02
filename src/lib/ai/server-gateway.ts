@@ -119,7 +119,7 @@ export async function runServerProviderCompletion(
   for (const cand of candidates) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 6000);
+      const timer = setTimeout(() => controller.abort(), 28000);
       const bodyPayload: Record<string, unknown> = {
         model: cand.model,
         messages: params.messages,

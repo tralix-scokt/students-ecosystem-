@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import HomePage from "@/app/page";
 import { BookExperience } from "@/components/book/BookExperience";
@@ -9,12 +9,14 @@ import { BookResetPasswordSpread } from "@/components/book/BookResetPasswordSpre
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
 const refreshMock = vi.fn();
+const prefetchMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: pushMock,
     replace: replaceMock,
     refresh: refreshMock,
+    prefetch: prefetchMock,
   }),
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -87,111 +89,104 @@ function setViewportAndReducedMotion(width: number, reducedMotion = false) {
   });
 }
 
-describe("Preserved Step 1 — Landing Page & 3D Hardcover Book Presentation", () => {
+describe("Standing 3D Book Entry & Open Two-Page Book (📖) Experience", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setViewportAndReducedMotion(1440, false);
+    setViewportAndReducedMotion(1440, true);
   });
 
-  it("renders approved brand identity, main heading, supporting text, CTAs, and all four feature pillars", () => {
-    render(<HomePage />);
+  it("renders the standing 3D Students Ecosystem book on first entry with a centered Continue button that navigates to /login", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HomePage />);
 
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Your Future Starts With Knowledge.",
+        name: /Students\s*Ecosystem/i,
       })
     ).toBeInTheDocument();
-
+    expect(screen.getByText(/Learn • Grow • Achieve/i)).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Learn with purpose. Understand with confidence. Prepare for success."
+      screen.getByText(/Your Complete Learning/i)
+    ).toBeInTheDocument();
+    expect(container.querySelector(".book-perspective")).not.toBeNull();
+
+    const continueBtn = screen.getByRole("button", { name: /^Continue$/i });
+    expect(continueBtn).toBeInTheDocument();
+
+    await user.click(continueBtn);
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith("/login");
+    });
+  });
+
+  it("opens into two facing pages (📖) with an educational quote on the left side and the Login form on the right side", async () => {
+    const user = userEvent.setup();
+    render(<BookExperience initialMode="login" initialOpen={true} />);
+
+    const leftPage = screen.getByRole("region", {
+      name: /Open book left page/i,
+    });
+    const rightPage = screen.getByRole("region", {
+      name: /Open book right page/i,
+    });
+
+    // Left page has an inspiring quote about education
+    expect(
+      within(leftPage).getByText(
+        /Education is the most powerful weapon which you can use to change the world/i
       )
     ).toBeInTheDocument();
+    expect(within(leftPage).getByText(/Nelson Mandela/i)).toBeInTheDocument();
 
-    for (const title of [
-      "Structured Learning",
-      "AI Tutor",
-      "Exam Preparation",
-      "Academic Management",
-    ]) {
-      expect(
-        screen.getByRole("heading", { level: 3, name: title })
-      ).toBeInTheDocument();
-    }
-
-    const getStartedLinks = screen.getAllByRole("link", {
-      name: /Get Started/i,
-    });
-    expect(getStartedLinks[0]).toHaveAttribute("href", "/login");
-  });
-
-  it("rotates the 3D hardcover book open around the spine on ENTER and displays both facing pages", async () => {
-    const user = userEvent.setup();
-    const { container } = render(<BookExperience initialMode="login" />);
-
+    // Right page has the Login page
     expect(
-      screen.getByRole("heading", {
-        level: 1,
-        name: "YOUR FUTURE STARTS WITH KNOWLEDGE.",
+      within(rightPage).getByRole("heading", {
+        level: 2,
+        name: "Welcome Back.",
       })
     ).toBeInTheDocument();
     expect(
-      screen.getByText("“Every great journey begins with a single page.”")
+      within(rightPage).getByLabelText(/Email address/i)
+    ).toBeInTheDocument();
+    expect(
+      within(rightPage).getByRole("button", { name: /^Sign In$/i })
     ).toBeInTheDocument();
 
-    const enterButton = screen.getByRole("button", {
-      name: /ENTER — OPEN YOUR JOURNEY/i,
-    });
-    const coverWrapper = enterButton.closest("[style*='transform-origin']");
-    expect(coverWrapper).toHaveStyle({
-      transformOrigin: "left center",
-      transform: "translateZ(20px) rotateY(0deg)",
-    });
+    // Can also cycle quotes on the left page
+    await user.click(
+      within(leftPage).getByRole("button", {
+        name: /Quote by Benjamin Franklin/i,
+      })
+    );
+    expect(
+      within(leftPage).getByText(
+        /An investment in knowledge pays the best interest/i
+      )
+    ).toBeInTheDocument();
+  });
 
-    await user.click(enterButton);
+  it("supports closed-to-open book cover transition when initialOpen={false}", async () => {
+    setViewportAndReducedMotion(1280, false);
+    const user = userEvent.setup();
+    render(<BookExperience initialMode="login" initialOpen={false} />);
 
-    expect(coverWrapper).toHaveStyle({
-      transform: "translateZ(3px) rotateY(-180deg)",
-    });
+    const continueBtn = screen.getByRole("button", { name: /^Continue$/i });
+    await user.click(continueBtn);
+
     expect(
       screen.getByRole("heading", { level: 2, name: "Welcome Back." })
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        level: 2,
-        name: "YOUR NEXT CHAPTER BEGINS HERE.",
-      })
-    ).toBeInTheDocument();
-    expect(container.querySelector(".book-perspective")).not.toBeNull();
-  });
-
-  it("supports mobile drawer navigation on 375px viewport and respects prefers-reduced-motion", async () => {
-    setViewportAndReducedMotion(375, true);
-    const user = userEvent.setup();
-    render(<HomePage />);
-
-    await user.click(
-      screen.getByRole("button", { name: /Open navigation menu/i })
-    );
-    expect(
-      screen.getByRole("navigation", { name: /Mobile navigation/i })
-    ).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(
-      screen.queryByRole("navigation", { name: /Mobile navigation/i })
-    ).not.toBeInTheDocument();
   });
 });
 
-describe("Step 2 — 3D Book Registration, Login, Verification & Recovery UI", () => {
+describe("Step 2 — Open Book Registration, Login, Verification & Recovery UI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setViewportAndReducedMotion(1280, true);
   });
 
-  it("validates all registration fields (Full name, Email, Country, Password complexity, Confirm, Terms) and shows Email Verification screen on success", async () => {
+  it("validates all registration fields on the right page and shows Email Verification screen on success", async () => {
     authServiceMocks.registerLearner.mockResolvedValueOnce({
       status: "verification-required",
       title: "Verify Your Email Address",
@@ -202,7 +197,6 @@ describe("Step 2 — 3D Book Registration, Login, Verification & Recovery UI", (
     const user = userEvent.setup();
     render(<BookExperience initialMode="register" initialOpen={true} />);
 
-    // Empty submission shows clear validation errors
     await user.click(screen.getByRole("button", { name: /Create Account/i }));
     expect(
       screen.getByText("Please enter your full name.")
@@ -216,7 +210,6 @@ describe("Step 2 — 3D Book Registration, Login, Verification & Recovery UI", (
       )
     ).toBeInTheDocument();
 
-    // Fill valid registration form including Country and Terms & Privacy
     await user.type(screen.getByLabelText(/Full name/i), "Adaeze Okafor");
     await user.type(
       screen.getByLabelText(/Email address/i),
@@ -229,7 +222,6 @@ describe("Step 2 — 3D Book Registration, Login, Verification & Recovery UI", (
     await user.type(pwInput, "TralixSecure2026!");
     await user.type(confirmInput, "TralixSecure2026!");
 
-    // Test password visibility toggles on registration
     await user.click(
       screen.getByRole("button", { name: /Show registration password/i })
     );
@@ -295,7 +287,6 @@ describe("Step 2 — 3D Book Registration, Login, Verification & Recovery UI", (
     const user = userEvent.setup();
     render(<BookExperience initialMode="login" initialOpen={true} />);
 
-    // 1. Invalid credentials
     authServiceMocks.signInLearner.mockResolvedValueOnce({
       status: "auth-error",
       title: "Sign-In Unsuccessful",
@@ -316,7 +307,6 @@ describe("Step 2 — 3D Book Registration, Login, Verification & Recovery UI", (
       ).toBeInTheDocument();
     });
 
-    // 2. Unverified email blocks access and offers verification options
     authServiceMocks.signInLearner.mockResolvedValueOnce({
       status: "unverified-email",
       title: "Email Verification Required",
@@ -331,7 +321,6 @@ describe("Step 2 — 3D Book Registration, Login, Verification & Recovery UI", (
       ).toBeInTheDocument();
     });
 
-    // 3. Verified login redirects to /onboarding (never a dashboard)
     authServiceMocks.signInLearner.mockResolvedValueOnce({
       status: "success",
       redirectTo: "/onboarding",
@@ -373,7 +362,6 @@ describe("Step 2 — 3D Book Registration, Login, Verification & Recovery UI", (
 
     unmount();
 
-    // Test Reset Password spread with active recovery session
     mockGetSession.mockResolvedValueOnce({
       data: { session: { access_token: "recovery-jwt" } },
     });

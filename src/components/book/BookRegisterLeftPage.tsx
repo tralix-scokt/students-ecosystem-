@@ -116,7 +116,7 @@ export function BookRegisterLeftPage({
             {BOOK_COPY.registerLeft.chapter}
           </span>
           <span className="font-serif text-xs italic text-slate-400">
-            Folio III
+            Page II
           </span>
         </div>
 
@@ -529,8 +529,8 @@ export function BookRegisterLeftPage({
         </div>
 
         <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
-          <span>E-LEARNING ECOSYSTEM</span>
-          <span className="font-serif italic">03</span>
+          <span>Students Ecosystem</span>
+          <span className="font-serif italic">02</span>
         </div>
       </div>
     </div>

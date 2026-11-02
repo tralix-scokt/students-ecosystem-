@@ -194,7 +194,7 @@ Imagine sharing a pizza cut into 4 equal slices and eating 3 of them.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("4. Answers basic questions directly AND renders labeled diagrams inside AiTutorWorkspaceClient", async () => {
+  it("4. Keeps AI Tutor canvas clean (no made-up prompts) AND answers basic questions with labeled diagrams when asked", async () => {
     sendTutorPromptMock.mockResolvedValueOnce({
       ok: true,
       conversationId: "conv-basic-1",
@@ -207,7 +207,7 @@ Imagine sharing a pizza cut into 4 equal slices and eating 3 of them.
 \`\`\`tutor-diagram
 {"diagramType":"process_flow","title":"Mental Math Shortcut for 15% of 240","steps":[{"label":"10% of 240","detail":"240 ÷ 10 = 24"},{"label":"5% of 240","detail":"Half of 24 = 12"},{"label":"15% Total","detail":"24 + 12 = 36"}],"takeaway":"15% of 240 is 36."}
 \`\`\``,
-      suggestedQuestions: ["How do I find 25% of 360 quickly?"],
+      suggestedQuestions: [],
       provider: "openai",
       model: "gpt-4o-mini",
       isAiGenerated: true,
@@ -217,17 +217,29 @@ Imagine sharing a pizza cut into 4 equal slices and eating 3 of them.
 
     render(<AiTutorWorkspaceClient />);
 
-    const basicChip = await screen.findByRole("button", {
-      name: /What is 15% of 240\? Show me simply\./i,
+    // Verify clean interface with zero made-up prompts or text clutter
+    expect(
+      await screen.findByRole("heading", { name: /^AI Tutor$/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/What is 15% of 240/i)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Explain photosynthesis/i)
+    ).not.toBeInTheDocument();
+
+    const input = screen.getByLabelText(/Ask your academic question/i);
+    fireEvent.change(input, {
+      target: { value: "What is 15% of 240?" },
     });
-    fireEvent.click(basicChip);
+    fireEvent.click(screen.getByRole("button", { name: /^Send$/i }));
 
     expect(
       await screen.findByText(/Mental Math Shortcut for 15% of 240/i)
     ).toBeInTheDocument();
     expect(sendTutorPromptMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: "What is 15% of 240? Show me simply.",
+        message: "What is 15% of 240?",
         visualPreference: "auto",
       })
     );

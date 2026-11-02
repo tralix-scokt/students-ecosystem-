@@ -93,7 +93,7 @@ export function BookLoginLeftPage({
             {BOOK_COPY.loginLeft.chapter}
           </span>
           <span className="font-serif text-xs italic text-slate-400">
-            Folio I
+            Page II
           </span>
         </div>
 
@@ -350,8 +350,8 @@ export function BookLoginLeftPage({
         </div>
 
         <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
-          <span>E-LEARNING ECOSYSTEM</span>
-          <span className="font-serif italic">01</span>
+          <span>Students Ecosystem</span>
+          <span className="font-serif italic">02</span>
         </div>
       </div>
     </div>

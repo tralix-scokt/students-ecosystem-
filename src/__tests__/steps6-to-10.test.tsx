@@ -214,13 +214,13 @@ describe("Steps 6–10 Complete E-LEARNING ECOSYSTEM Verification", () => {
     ).toBe(true);
   });
 
-  it("Step 6: renders AI Tutor modes, saved conversations, AI transparency notice, and sends questions cleanly", async () => {
+  it("Step 6: renders a clean AI Tutor interface with no made-up prompts, toggles saved conversations, and sends questions cleanly", async () => {
     sendTutorPromptMock.mockResolvedValueOnce({
       ok: true,
       conversationId: "conv-1",
       reply:
         "Scalar quantities have magnitude only (e.g., mass), while vectors have magnitude and direction (e.g., velocity).",
-      suggestedQuestions: ["How do we resolve a vector into x and y components?"],
+      suggestedQuestions: [],
       provider: "openai",
       model: "gpt-4o-mini",
       isAiGenerated: true,
@@ -231,9 +231,21 @@ describe("Steps 6–10 Complete E-LEARNING ECOSYSTEM Verification", () => {
     render(<AiTutorWorkspaceClient />);
 
     expect(
-      await screen.findByText(/Personalized AI Study Tutor/i)
+      await screen.findByRole("heading", { name: /^AI Tutor$/i })
     ).toBeInTheDocument();
-    expect(screen.getByText(/AI Transparency Notice:/i)).toBeInTheDocument();
+
+    // Verify clean empty canvas: zero made-up prompts or lecture paragraphs
+    expect(
+      screen.queryByText(/Suggested Teacher Lessons/i)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Or Try a Quick Basic Question/i)
+    ).not.toBeInTheDocument();
+
+    // Toggle saved chats drawer to see conversation history
+    fireEvent.click(
+      screen.getByRole("button", { name: /Toggle saved conversations/i })
+    );
     expect(
       screen.getByText(/Scalars vs Vectors Deep Dive/i)
     ).toBeInTheDocument();
@@ -245,15 +257,7 @@ describe("Steps 6–10 Complete E-LEARNING ECOSYSTEM Verification", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Send$/i }));
 
     expect(
-      await screen.findByText(
-        /AI-Generated Study Response • Not Official Syllabus Material/i
-      )
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Scalar quantities have magnitude only/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/How do we resolve a vector into x and y components\?/i)
+      await screen.findByText(/Scalar quantities have magnitude only/i)
     ).toBeInTheDocument();
   });
 
