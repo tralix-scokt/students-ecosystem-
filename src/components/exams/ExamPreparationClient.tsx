@@ -33,9 +33,14 @@ import {
   type ExamAttemptHistoryItem,
   type ExamCategoryRecord,
   type ExamSubjectRecord,
+  type PastQuestionsAvailability,
   type SubmittedExamResponseItem,
   type TopicPerformanceItem,
 } from "@/lib/exams/examService";
+import {
+  NIGERIAN_PAST_QUESTION_EXAM_CODES,
+  PAST_QUESTION_YEARS,
+} from "@/lib/exams/pastQuestionsClient";
 
 export function ExamPreparationClient() {
   const { status, isRetrying, data, errorMessage, retry } =
@@ -56,8 +61,11 @@ export function ExamPreparationClient() {
   const [isTimed, setIsTimed] = useState<boolean>(true);
   const [timeLimitMinutes, setTimeLimitMinutes] = useState<number>(15);
   const [practiceSource, setPracticeSource] = useState<
-    "curated_bank" | "ai_generated"
+    "curated_bank" | "past_questions_api" | "ai_generated"
   >("curated_bank");
+  const [selectedExamYear, setSelectedExamYear] = useState<string>("all");
+  const [pastQuestionsAvail, setPastQuestionsAvail] =
+    useState<PastQuestionsAvailability | null>(null);
 
   // Active exam runner state
   const [startingExam, setStartingExam] = useState(false);
@@ -96,6 +104,9 @@ export function ExamPreparationClient() {
     setSubjects(boot.subjects);
     setHistory(boot.attempts);
     setTopicPerf(boot.topicPerformance);
+    if (boot.pastQuestionsAvailability) {
+      setPastQuestionsAvail(boot.pastQuestionsAvailability);
+    }
     setLoadingBoot(false);
 
     if (boot.categories.length > 0) {
@@ -148,6 +159,12 @@ export function ExamPreparationClient() {
     setSelectedCatCode(cat.code);
     setTimeLimitMinutes(cat.defaultDurationMinutes);
     setSelectedTopics([]);
+    if (
+      !NIGERIAN_PAST_QUESTION_EXAM_CODES.has(cat.code) &&
+      practiceSource === "past_questions_api"
+    ) {
+      setPracticeSource("curated_bank");
+    }
     const subjs = subjects.filter((s) => s.examCategoryId === cat.id);
     if (subjs[0]) {
       setSelectedSubject(subjs[0].subjectName);
@@ -241,6 +258,10 @@ export function ExamPreparationClient() {
       isTimed,
       timeLimitMinutes,
       practiceSource,
+      examYear:
+        practiceSource === "past_questions_api" && selectedExamYear !== "all"
+          ? Number(selectedExamYear)
+          : null,
     });
 
     setStartingExam(false);
@@ -494,6 +515,11 @@ export function ExamPreparationClient() {
                           Question {currentIndex + 1} of{" "}
                           {activeAttempt.questions.length} • Topic:{" "}
                           <strong className="text-slate-200">{q.topic}</strong>
+                          {q.originType === "authorized_past_question" && (
+                            <span className="ml-2 rounded-full border border-electric-400/40 bg-electric-500/15 px-2 py-0.5 text-[10px] font-bold text-electric-300">
+                              Past Question{q.examYear ? ` • ${q.examYear}` : ""}
+                            </span>
+                          )}
                         </span>
                         <span className="uppercase tracking-wider">
                           {q.difficulty} • {q.points} pt{q.points > 1 ? "s" : ""}
@@ -876,16 +902,30 @@ export function ExamPreparationClient() {
                         <select
                           id="exam-source-select"
                           value={practiceSource}
-                          onChange={(e) =>
-                            setPracticeSource(
-                              e.target.value as "curated_bank" | "ai_generated"
-                            )
-                          }
+                          onChange={(e) => {
+                            const nextSrc = e.target.value as
+                              | "curated_bank"
+                              | "past_questions_api"
+                              | "ai_generated";
+                            setPracticeSource(nextSrc);
+                            if (nextSrc === "past_questions_api") {
+                              setQuestionCount((prev) => Math.max(prev, 10));
+                            } else {
+                              setQuestionCount((prev) => Math.min(prev, 15));
+                            }
+                          }}
                           className="mt-1.5 w-full rounded-xl border border-white/15 bg-obsidian-950 px-3 py-2.5 text-sm text-white"
                         >
                           <option value="curated_bank">
                             Curated OER / Original Practice Bank
                           </option>
+                          {NIGERIAN_PAST_QUESTION_EXAM_CODES.has(
+                            selectedCatCode
+                          ) && (
+                            <option value="past_questions_api">
+                              Nigerian Past-Questions API (JAMB / WAEC / NECO)
+                            </option>
+                          )}
                           <option value="ai_generated">
                             AI-Generated Practice Items (Labeled)
                           </option>
@@ -893,8 +933,51 @@ export function ExamPreparationClient() {
                       </div>
                     </div>
 
+                    {practiceSource === "past_questions_api" && (
+                      <div className="rounded-xl border border-electric-400/35 bg-electric-500/10 p-3.5 text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-bold text-electric-300">
+                              Live Nigerian Past-Questions Archive ({selectedCatCode === "JAMB_UTME" ? "JAMB UTME" : selectedCatCode})
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-slate-300">
+                              {pastQuestionsAvail?.apiConfigured ||
+                              (pastQuestionsAvail?.pastCounts?.[selectedCatCode] ??
+                                0) > 0
+                                ? `API Connected • ${pastQuestionsAvail?.pastCounts?.[selectedCatCode] ?? 0} ${selectedCatCode} past questions cached + live year streaming active.`
+                                : "Connect your free ALOC AccessToken in Admin Portal (/admin → Exam Question Bank) to stream 15,000+ JAMB, WAEC & NECO past questions."}
+                            </p>
+                          </div>
+                          <div>
+                            <label
+                              htmlFor="exam-year-select"
+                              className="sr-only"
+                            >
+                              Exam Year
+                            </label>
+                            <select
+                              id="exam-year-select"
+                              value={selectedExamYear}
+                              onChange={(e) =>
+                                setSelectedExamYear(e.target.value)
+                              }
+                              className="rounded-xl border border-white/15 bg-obsidian-950 px-3 py-2 text-xs font-semibold text-white"
+                            >
+                              <option value="all">All Years (Mixed)</option>
+                              {PAST_QUESTION_YEARS.map((yr) => (
+                                <option key={yr} value={String(yr)}>
+                                  Year {yr}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Topics Filter */}
-                    {currentSubjectObj &&
+                    {practiceSource !== "past_questions_api" &&
+                      currentSubjectObj &&
                       currentSubjectObj.availableTopics.length > 0 && (
                         <div>
                           <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -961,11 +1044,14 @@ export function ExamPreparationClient() {
                           id="exam-q-count"
                           type="number"
                           min={2}
-                          max={15}
+                          max={practiceSource === "past_questions_api" ? 40 : 15}
                           value={questionCount}
                           onChange={(e) =>
                             setQuestionCount(
-                              Math.min(15, Math.max(2, Number(e.target.value)))
+                              Math.min(
+                                practiceSource === "past_questions_api" ? 40 : 15,
+                                Math.max(2, Number(e.target.value))
+                              )
                             )
                           }
                           className="mt-1.5 w-full rounded-xl border border-white/15 bg-obsidian-950 px-3 py-2 text-sm text-white"
@@ -1017,7 +1103,9 @@ export function ExamPreparationClient() {
                         {startingExam
                           ? practiceSource === "ai_generated"
                             ? "Generating AI Practice Session..."
-                            : "Starting Exam Session..."
+                            : practiceSource === "past_questions_api"
+                              ? "Fetching Past Questions Archive..."
+                              : "Starting Exam Session..."
                           : "Start Practice Examination"}
                       </span>
                     </button>

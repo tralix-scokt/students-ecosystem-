@@ -1,4 +1,5 @@
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import type { PastQuestionsApiAdminStatus } from "@/lib/exams/pastQuestionsClient";
 
 export interface PlatformOverviewStats {
   totalUsers: number;
@@ -47,6 +48,7 @@ export interface AdminExamQuestionRow {
   difficulty: string;
   questionType: string;
   originType: string;
+  examYear: number | null;
   prompt: string;
   isPublished: boolean;
 }
@@ -142,6 +144,7 @@ export async function fetchAdminDashboardPayload(): Promise<
       aiUsageLogs: AdminUsageLogRow[];
       auditLogs: AdminAuditLogRow[];
       systemHealth: Record<string, unknown> | null;
+      pastQuestionsApi?: PastQuestionsApiAdminStatus;
     }
 > {
   const supabase = createBrowserSupabaseClient();
@@ -176,6 +179,7 @@ export async function fetchAdminDashboardPayload(): Promise<
     aiLogRes,
     auditRes,
     healthHttp,
+    pqApiRes,
   ] = await Promise.all([
     supabase.rpc("admin_get_platform_overview"),
     supabase
@@ -197,7 +201,7 @@ export async function fetchAdminDashboardPayload(): Promise<
       .from("exam_questions")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(60),
+      .limit(80),
     supabase
       .from("platform_announcements")
       .select("*")
@@ -217,6 +221,9 @@ export async function fetchAdminDashboardPayload(): Promise<
     fetch("/api/admin/actions")
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null),
+    Promise.resolve(supabase.rpc("admin_get_past_questions_api_status")).catch(
+      () => ({ data: null })
+    ),
   ]);
 
   if (ovRes.error) {
@@ -266,6 +273,10 @@ export async function fetchAdminDashboardPayload(): Promise<
       difficulty: String(r.difficulty),
       questionType: String(r.question_type),
       originType: String(r.origin_type),
+      examYear:
+        r.exam_year !== null && r.exam_year !== undefined
+          ? Number(r.exam_year)
+          : null,
       prompt: String(r.prompt),
       isPublished: Boolean(r.is_published),
     })),
@@ -313,5 +324,9 @@ export async function fetchAdminDashboardPayload(): Promise<
       createdAt: String(r.created_at),
     })),
     systemHealth: healthHttp?.health || null,
+    pastQuestionsApi:
+      pqApiRes && pqApiRes.data
+        ? (pqApiRes.data as PastQuestionsApiAdminStatus)
+        : undefined,
   };
 }

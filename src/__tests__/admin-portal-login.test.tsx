@@ -5,6 +5,10 @@ import {
   normalizeEmail,
   validateLoginInput,
 } from "@/lib/validation/authValidation";
+import {
+  cleanAlocQuestionHtml,
+  resolveAlocSubjectSlug,
+} from "@/lib/exams/pastQuestionsClient";
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
@@ -192,5 +196,18 @@ describe("Admin Login Routing & Executive Governance Command Center", () => {
       expect(signOutLearnerMock).toHaveBeenCalledTimes(1);
       expect(replaceMock).toHaveBeenCalledWith("/login");
     });
+  });
+
+  it("maps Nigerian exam subjects & sanitizes ALOC HTML past questions cleanly", () => {
+    expect(resolveAlocSubjectSlug("Use of English")).toBe("english");
+    expect(resolveAlocSubjectSlug("Literature in English")).toBe("englishlit");
+    expect(resolveAlocSubjectSlug("Financial Accounting")).toBe("accounting");
+    expect(resolveAlocSubjectSlug("Civic Education")).toBe("civiledu");
+    expect(resolveAlocSubjectSlug("Christian Religious Studies")).toBe("crk");
+
+    const cleaned = cleanAlocQuestionHtml(
+      "<p>Solve <i>x</i><sup>2</sup> + H<sub>2</sub>O at 100&deg;C &times; 2</p>"
+    );
+    expect(cleaned).toBe("Solve x² + H₂O at 100°C × 2");
   });
 });

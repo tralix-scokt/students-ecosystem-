@@ -1,4 +1,5 @@
 import { invokeAiGateway } from "@/lib/ai/client-gateway";
+import { invokePastQuestionsConnector } from "@/lib/exams/pastQuestionsClient";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export interface ExamCategoryRecord {
@@ -33,6 +34,7 @@ export interface ActiveExamQuestion {
   prompt: string;
   points: number;
   originType: string;
+  examYear?: number | null;
   recommendedCourseSlug?: string | null;
   recommendedLessonSlug?: string | null;
   options: Array<{ key: string; text: string }>;
@@ -109,11 +111,17 @@ export interface TopicPerformanceItem {
   accuracyPercent: number;
 }
 
+export interface PastQuestionsAvailability {
+  apiConfigured: boolean;
+  pastCounts: Record<string, number>;
+}
+
 export async function fetchExamPrepBootstrap(): Promise<{
   categories: ExamCategoryRecord[];
   subjects: ExamSubjectRecord[];
   attempts: ExamAttemptHistoryItem[];
   topicPerformance: TopicPerformanceItem[];
+  pastQuestionsAvailability?: PastQuestionsAvailability;
 }> {
   const supabase = createBrowserSupabaseClient();
   if (!supabase) {
@@ -125,7 +133,7 @@ export async function fetchExamPrepBootstrap(): Promise<{
     };
   }
 
-  const [catRes, subjRes, attRes, perfRes] = await Promise.all([
+  const [catRes, subjRes, attRes, perfRes, pqAvailRes] = await Promise.all([
     supabase
       .from("exam_categories")
       .select("*")
@@ -151,6 +159,9 @@ export async function fetchExamPrepBootstrap(): Promise<{
       .select("*")
       .order("accuracy_percent", { ascending: true })
       .limit(30),
+    Promise.resolve(
+      supabase.rpc("get_past_questions_public_availability")
+    ).catch(() => ({ data: null })),
   ]);
 
   const categories: ExamCategoryRecord[] = (catRes.data || []).map(
@@ -218,7 +229,16 @@ export async function fetchExamPrepBootstrap(): Promise<{
     })
   );
 
-  return { categories, subjects, attempts, topicPerformance };
+  return {
+    categories,
+    subjects,
+    attempts,
+    topicPerformance,
+    pastQuestionsAvailability:
+      pqAvailRes && pqAvailRes.data
+        ? (pqAvailRes.data as PastQuestionsAvailability)
+        : undefined,
+  };
 }
 
 export async function startPracticeExamSession(params: {
@@ -229,11 +249,55 @@ export async function startPracticeExamSession(params: {
   questionCount: number;
   isTimed: boolean;
   timeLimitMinutes: number;
-  practiceSource: "curated_bank" | "ai_generated";
+  practiceSource: "curated_bank" | "past_questions_api" | "ai_generated";
+  examYear?: number | null;
 }): Promise<{ ok: true; attempt: ActiveExamAttempt } | { ok: false; error: string }> {
   const supabase = createBrowserSupabaseClient();
   if (!supabase) {
     return { ok: false, error: "Supabase client is not configured." };
+  }
+
+  if (params.practiceSource === "past_questions_api") {
+    const syncRes = await invokePastQuestionsConnector({
+      action: "student_prepare_past_paper",
+      examCategoryCode: params.examCategoryCode,
+      subject: params.subject,
+      examYear: params.examYear ?? null,
+      questionCount: params.questionCount,
+    });
+
+    if (!syncRes.ok) {
+      return {
+        ok: false,
+        error:
+          syncRes.error ||
+          "Could not fetch past questions right now. Verify the ALOC AccessToken in Admin Portal (/admin) or switch to Curated / AI Practice.",
+      };
+    }
+
+    const { data, error } = await supabase.rpc("start_student_exam_attempt", {
+      p_exam_category_code: params.examCategoryCode,
+      p_subject: params.subject,
+      p_topics: null,
+      p_difficulty: "mixed",
+      p_question_count: params.questionCount,
+      p_is_timed: params.isTimed,
+      p_time_limit_minutes: params.timeLimitMinutes,
+      p_ai_questions: null,
+      p_origin_filter: "authorized_past_question",
+      p_exam_year: params.examYear ?? null,
+    });
+
+    if (error || !data) {
+      return {
+        ok: false,
+        error:
+          error?.message ||
+          "No past questions matched this subject/year selection. Try 'All Years (Mixed)'.",
+      };
+    }
+
+    return { ok: true, attempt: data as ActiveExamAttempt };
   }
 
   let aiQuestions: Array<Record<string, unknown>> | null = null;

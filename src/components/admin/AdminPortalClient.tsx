@@ -43,6 +43,12 @@ import {
   type AdminUsageLogRow,
   type PlatformOverviewStats,
 } from "@/lib/admin/adminService";
+import {
+  invokePastQuestionsConnector,
+  NIGERIAN_CORE_SUBJECTS,
+  PAST_QUESTION_YEARS,
+  type PastQuestionsApiAdminStatus,
+} from "@/lib/exams/pastQuestionsClient";
 
 type AdminSection =
   | "overview"
@@ -117,6 +123,28 @@ export function AdminPortalClient() {
   const [auditLogs, setAuditLogs] = useState<AdminAuditLogRow[]>([]);
   const [systemHealth, setSystemHealth] =
     useState<Record<string, unknown> | null>(null);
+  const [pastQuestionsApi, setPastQuestionsApi] =
+    useState<PastQuestionsApiAdminStatus>({
+      configured: false,
+      provider: "aloc",
+      baseUrl: "https://questions.aloc.com.ng/api/v2",
+      maskedToken: null,
+      updatedAt: null,
+      waecPastCount: 0,
+      necoPastCount: 0,
+      jambPastCount: 0,
+      totalPastQuestions: 0,
+    });
+
+  // Nigerian Past-Questions API (ALOC) Connector state
+  const [alocTokenInput, setAlocTokenInput] = useState("");
+  const [savingAlocToken, setSavingAlocToken] = useState(false);
+  const [syncExamCode, setSyncExamCode] = useState<
+    "JAMB_UTME" | "WAEC" | "NECO"
+  >("JAMB_UTME");
+  const [syncSubject, setSyncSubject] = useState<string>("Mathematics");
+  const [syncYear, setSyncYear] = useState<string>("all");
+  const [syncingPastBatch, setSyncingPastBatch] = useState(false);
 
   // Search & Filter states
   const [userSearch, setUserSearch] = useState("");
@@ -196,6 +224,9 @@ export function AdminPortalClient() {
       setAiLogs(res.aiUsageLogs);
       setAuditLogs(res.auditLogs);
       setSystemHealth(res.systemHealth);
+      if (res.pastQuestionsApi) {
+        setPastQuestionsApi(res.pastQuestionsApi);
+      }
       setLastSyncedAt(
         new Date().toLocaleTimeString([], {
           hour: "2-digit",
@@ -434,6 +465,79 @@ export function AdminPortalClient() {
       `Course "${course.title}" is now ${nextPublish ? "published" : "unpublished"}.`
     );
     await reloadAdmin();
+  };
+
+  const handleSaveAndTestAlocToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = alocTokenInput.trim();
+    if (trimmed.length < 6) {
+      setStatusBanner(
+        "Please paste your AccessToken from questions.aloc.com.ng first."
+      );
+      return;
+    }
+    setSavingAlocToken(true);
+    setStatusBanner(null);
+    try {
+      const testRes = await invokePastQuestionsConnector({
+        action: "test_connection",
+        accessToken: trimmed,
+        save: true,
+      });
+
+      if (testRes.ok) {
+        setAlocTokenInput("");
+        setStatusBanner(
+          testRes.message ||
+            "ALOC Past-Questions API token verified & saved securely on server."
+        );
+        await reloadAdmin();
+        return;
+      }
+
+      // If live verify had a temporary upstream error, still allow saving via audited RPC if requested
+      const supabase = createBrowserSupabaseClient();
+      if (supabase) {
+        await supabase.rpc("admin_save_past_questions_api_config", {
+          p_access_token: trimmed,
+        });
+        await reloadAdmin();
+      }
+      setStatusBanner(
+        `Saved token to server vault, though live test reported: ${testRes.error || "Check token validity on questions.aloc.com.ng."}`
+      );
+    } finally {
+      setSavingAlocToken(false);
+    }
+  };
+
+  const handleSyncPastQuestionsBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSyncingPastBatch(true);
+    setStatusBanner(null);
+    try {
+      const res = await invokePastQuestionsConnector({
+        action: "admin_sync_batch",
+        examCategoryCode: syncExamCode,
+        subject: syncSubject,
+        examYear: syncYear === "all" ? null : Number(syncYear),
+        questionCount: 40,
+      });
+
+      if (!res.ok) {
+        setStatusBanner(
+          res.error || "Could not import past questions from ALOC API."
+        );
+        return;
+      }
+
+      setStatusBanner(
+        `Imported ${res.importedCount ?? 0} new ${syncExamCode} ${syncSubject}${syncYear !== "all" ? ` (${syncYear})` : ""} past questions (${res.skippedDuplicates ?? 0} duplicates skipped • ${res.availableCount ?? 0} ready in CBT bank).`
+      );
+      await reloadAdmin();
+    } finally {
+      setSyncingPastBatch(false);
+    }
   };
 
   // 4. Add Curated Exam Question + Options + Protected Answer Key
@@ -1370,7 +1474,189 @@ export function AdminPortalClient() {
 
         {/* 4. EXAM QUESTION BANK */}
         {section === "exams" && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="space-y-6">
+            {/* NIGERIAN PAST-QUESTIONS API CONNECTOR (JAMB / WAEC / NECO) */}
+            <section className="rounded-2xl border border-electric-400/35 bg-obsidian-900/90 p-5 shadow-glass-card">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-base font-bold text-white">
+                      Nigerian Past-Questions API Connector (JAMB UTME • WAEC • NECO)
+                    </h2>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                        pastQuestionsApi.configured
+                          ? "border border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
+                          : "border border-amber-400/40 bg-amber-500/15 text-amber-200"
+                      }`}
+                    >
+                      {pastQuestionsApi.configured
+                        ? `Connected (${pastQuestionsApi.maskedToken || "Active"})`
+                        : "Awaiting ALOC AccessToken"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-300">
+                    Connects your CBT Exam Center to{" "}
+                    <a
+                      href="https://questions.aloc.com.ng"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-electric-300 underline hover:text-electric-200"
+                    >
+                      questions.aloc.com.ng
+                    </a>{" "}
+                    (15,000+ indexed JAMB, WAEC &amp; NECO past questions by
+                    subject and year). Your token is locked inside a forced-RLS
+                    server vault and never sent to browsers.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <div className="rounded-xl border border-white/10 bg-obsidian-950/85 px-3 py-1.5">
+                    <span className="text-slate-400">JAMB: </span>
+                    <span className="font-bold text-electric-300">
+                      {pastQuestionsApi.jambPastCount}
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-obsidian-950/85 px-3 py-1.5">
+                    <span className="text-slate-400">WAEC: </span>
+                    <span className="font-bold text-emerald-300">
+                      {pastQuestionsApi.waecPastCount}
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-obsidian-950/85 px-3 py-1.5">
+                    <span className="text-slate-400">NECO: </span>
+                    <span className="font-bold text-purple-300">
+                      {pastQuestionsApi.necoPastCount}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
+                {/* Step 1: Save & Verify Token */}
+                <form
+                  onSubmit={handleSaveAndTestAlocToken}
+                  className="space-y-2.5 rounded-xl border border-white/10 bg-obsidian-950/85 p-4 lg:col-span-5"
+                >
+                  <p className="text-xs font-bold text-white">
+                    1. Connect or Rotate ALOC AccessToken
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Sign up free at{" "}
+                    <a
+                      href="https://questions.aloc.com.ng"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-electric-300 underline"
+                    >
+                      questions.aloc.com.ng
+                    </a>
+                    , copy your <code>AccessToken</code>, and paste it here:
+                  </p>
+                  <input
+                    type="password"
+                    value={alocTokenInput}
+                    onChange={(e) => setAlocTokenInput(e.target.value)}
+                    placeholder={
+                      pastQuestionsApi.configured
+                        ? `Saved (${pastQuestionsApi.maskedToken}) — paste new token to update`
+                        : "Paste ALOC AccessToken (e.g. ALOC-xxxxxxxx)..."
+                    }
+                    className="w-full rounded-xl border border-white/15 bg-obsidian-900 px-3 py-2 text-xs text-white placeholder:text-slate-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={savingAlocToken}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-electric-500 py-2.5 text-xs font-bold text-obsidian-950 disabled:opacity-60"
+                  >
+                    {savingAlocToken ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Verifying with ALOC API...
+                      </>
+                    ) : (
+                      "Verify & Save API Token"
+                    )}
+                  </button>
+                </form>
+
+                {/* Step 2: One-Click Batch Pull by Exam, Subject & Year */}
+                <form
+                  onSubmit={handleSyncPastQuestionsBatch}
+                  className="space-y-2.5 rounded-xl border border-white/10 bg-obsidian-950/85 p-4 lg:col-span-7"
+                >
+                  <p className="text-xs font-bold text-white">
+                    2. One-Click Import Real Past Questions by Exam, Subject &amp; Year
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Pulls up to 40 real past questions + answer keys per batch
+                    into your permanent Supabase CBT bank (students can also
+                    stream live on demand in <code>/dashboard/exams</code>).
+                  </p>
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                    <select
+                      aria-label="Past question exam body"
+                      value={syncExamCode}
+                      onChange={(e) =>
+                        setSyncExamCode(
+                          e.target.value as "JAMB_UTME" | "WAEC" | "NECO"
+                        )
+                      }
+                      className="rounded-xl border border-white/15 bg-obsidian-900 px-3 py-2 text-xs text-white"
+                    >
+                      <option value="JAMB_UTME">JAMB UTME</option>
+                      <option value="WAEC">WAEC (WASSCE)</option>
+                      <option value="NECO">NECO (SSCE)</option>
+                    </select>
+
+                    <select
+                      aria-label="Past question subject"
+                      value={syncSubject}
+                      onChange={(e) => setSyncSubject(e.target.value)}
+                      className="rounded-xl border border-white/15 bg-obsidian-900 px-3 py-2 text-xs text-white"
+                    >
+                      {NIGERIAN_CORE_SUBJECTS.map((subj) => (
+                        <option key={subj} value={subj}>
+                          {subj}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      aria-label="Past question year"
+                      value={syncYear}
+                      onChange={(e) => setSyncYear(e.target.value)}
+                      className="rounded-xl border border-white/15 bg-obsidian-900 px-3 py-2 text-xs text-white"
+                    >
+                      <option value="all">All Years (Mixed)</option>
+                      {PAST_QUESTION_YEARS.map((yr) => (
+                        <option key={yr} value={String(yr)}>
+                          Year {yr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={syncingPastBatch}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-electric-400/45 bg-electric-500/20 py-2.5 text-xs font-bold text-electric-200 transition hover:bg-electric-500/30 disabled:opacity-60"
+                  >
+                    {syncingPastBatch ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Importing Past Questions &amp; Protected Keys...
+                      </>
+                    ) : (
+                      `Pull ${syncExamCode === "JAMB_UTME" ? "JAMB" : syncExamCode} ${syncSubject} Past Questions`
+                    )}
+                  </button>
+                </form>
+              </div>
+            </section>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <form
               onSubmit={handleCreateExamQuestion}
               className="space-y-3 rounded-2xl border border-white/10 bg-obsidian-900/80 p-5 lg:col-span-5"
@@ -1496,6 +1782,11 @@ export function AdminPortalClient() {
                     <div>
                       <p className="font-semibold text-white">
                         {q.subject} • {q.topic} ({q.difficulty})
+                        {q.examYear ? (
+                          <span className="ml-2 rounded-full border border-electric-400/35 bg-electric-500/15 px-2 py-0.5 text-[10px] font-bold text-electric-300">
+                            {q.examYear}
+                          </span>
+                        ) : null}
                       </p>
                       <p className="mt-1 line-clamp-2 text-slate-300">
                         {q.prompt}
@@ -1519,6 +1810,7 @@ export function AdminPortalClient() {
                 ))}
               </div>
             </section>
+            </div>
           </div>
         )}
 
