@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import { isValidTutorImageDataUrl } from "@/lib/ai/imageAttachment";
+import {
+  detectTimeSensitiveIntent,
+  fetchLiveCurrentContext,
+} from "@/lib/ai/liveSearchGrounding";
 import {
   evaluateStudentPromptSafety,
   TUTOR_LEARNING_MODES,
@@ -7,7 +12,10 @@ import {
   type TutorVisualAidPreference,
 } from "@/lib/ai/types";
 import { buildMasterTeacherSystemPrompt } from "@/lib/ai/visualTeaching";
-import { runServerProviderCompletion } from "@/lib/ai/server-gateway";
+import {
+  runServerProviderCompletion,
+  type AiMessageContentPart,
+} from "@/lib/ai/server-gateway";
 import {
   checkRateLimit,
   extractClientIdentifier,
@@ -83,7 +91,26 @@ export async function POST(request: Request) {
   }
 
   if (action === "tutor_chat") {
-    const safety = evaluateStudentPromptSafety(String(body?.message || ""));
+    const rawMessage = String(body?.message || "").trim();
+    const rawImage = body?.imageDataUrl ? String(body.imageDataUrl).trim() : "";
+
+    if (rawImage && !isValidTutorImageDataUrl(rawImage)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Attached photo format is invalid or exceeds the 4 MB upload limit. Please upload a PNG, JPG, or WEBP image.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const effectiveCheckPrompt =
+      rawMessage ||
+      (rawImage
+        ? "Please carefully analyze this photo and explain or solve what is shown step by step."
+        : "");
+    const safety = evaluateStudentPromptSafety(effectiveCheckPrompt);
     if (!safety.safe) {
       return NextResponse.json(
         { ok: false, error: safety.reason || "Invalid academic prompt." },
@@ -204,7 +231,20 @@ export async function POST(request: Request) {
       : "Learner Pathway: General secondary/tertiary student.";
 
     if (action === "tutor_chat") {
-      const userPrompt = String(body.message || "").trim();
+      const rawUserText = String(body.message || "").trim();
+      const imageDataUrl =
+        body.imageDataUrl && isValidTutorImageDataUrl(String(body.imageDataUrl))
+          ? String(body.imageDataUrl).trim()
+          : "";
+      const userPrompt =
+        rawUserText ||
+        "Please carefully inspect this photo and explain or solve what is shown step by step.";
+      const storedUserMessageContent = imageDataUrl
+        ? rawUserText
+          ? `[Photo Attached] ${rawUserText}`
+          : "[Photo Attached] Analyze and explain what is in this picture."
+        : userPrompt;
+
       const modeId = String(
         body.learningMode || "explain_topic"
       ) as TutorLearningMode;
@@ -240,10 +280,11 @@ export async function POST(request: Request) {
           }));
         }
       } else {
+        const titleSeed = rawUserText || (imageDataUrl ? "Photo Study Analysis" : userPrompt);
         const autoTitle =
-          userPrompt.length > 64
-            ? `${userPrompt.slice(0, 61).trim()}...`
-            : userPrompt;
+          titleSeed.length > 64
+            ? `${titleSeed.slice(0, 61).trim()}...`
+            : titleSeed;
         const { data: createdConv } = await supabase
           .from("ai_tutor_conversations")
           .insert({
@@ -266,6 +307,17 @@ export async function POST(request: Request) {
         }
       }
 
+      // Live current-knowledge retrieval so the AI provides up-to-date answers to any question
+      const isTimeSensitive = detectTimeSensitiveIntent(rawUserText || userPrompt);
+      const liveGrounding = rawUserText
+        ? await fetchLiveCurrentContext(rawUserText)
+        : {
+            contextBlock: "",
+            sources: [],
+            usedLiveSearch: false,
+            isTimeSensitive: false,
+          };
+
       const teacherSystemPrompt = buildMasterTeacherSystemPrompt({
         academicContext,
         subject,
@@ -274,7 +326,19 @@ export async function POST(request: Request) {
         modeDescription: modeMeta.description,
         explanationStyle,
         visualPreference,
+        hasImageAttachment: Boolean(imageDataUrl),
+        liveGroundedContext: liveGrounding.contextBlock,
       });
+
+      const userTurnContent: string | AiMessageContentPart[] = imageDataUrl
+        ? [
+            { type: "text", text: userPrompt },
+            {
+              type: "image_url",
+              image_url: { url: imageDataUrl, detail: "high" },
+            },
+          ]
+        : userPrompt;
 
       const completion = await runServerProviderCompletion({
         messages: [
@@ -283,12 +347,13 @@ export async function POST(request: Request) {
             content: teacherSystemPrompt,
           },
           ...historyMessages,
-          { role: "user", content: userPrompt },
+          { role: "user", content: userTurnContent },
         ],
         maxTokens: Math.min(Math.max(maxTokens, 1500), 2048),
         preferredProvider,
         defaultModel,
         fallbackModel,
+        preferLiveWebSearch: isTimeSensitive && !imageDataUrl,
       });
 
       if (conversationId) {
@@ -297,7 +362,7 @@ export async function POST(request: Request) {
             conversation_id: conversationId,
             user_id: user.id,
             role: "user",
-            content: userPrompt,
+            content: storedUserMessageContent,
             learning_mode: modeMeta.id,
             is_ai_generated: false,
             is_verified_educational_material: false,
@@ -364,11 +429,28 @@ export async function POST(request: Request) {
         }
       }
 
+      const mergedSources: Array<{ title: string; url: string }> = [];
+      for (const src of [
+        ...(completion.webCitations || []),
+        ...liveGrounding.sources.map((s) => ({ title: s.title, url: s.url })),
+      ]) {
+        if (
+          src.url &&
+          !mergedSources.some((existing) => existing.url === src.url)
+        ) {
+          mergedSources.push(src);
+        }
+        if (mergedSources.length >= 4) break;
+      }
+
       return NextResponse.json({
         ok: true,
         conversationId,
         reply: completion.content,
         suggestedQuestions: followUps,
+        liveSources: mergedSources,
+        usedLiveWeb:
+          mergedSources.length > 0 || completion.provider === "openrouter-live-web",
         provider: completion.provider,
         model: completion.model,
         isAiGenerated: true,

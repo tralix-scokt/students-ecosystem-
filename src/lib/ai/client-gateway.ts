@@ -7,6 +7,8 @@ export interface AiGatewayResponse {
   reply?: string;
   content?: string;
   suggestedQuestions?: string[];
+  liveSources?: Array<{ title: string; url: string }>;
+  usedLiveWeb?: boolean;
   questions?: Array<Record<string, unknown>>;
   provider?: string;
   model?: string;

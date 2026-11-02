@@ -14,24 +14,24 @@ const config: Config = {
       },
       colors: {
         obsidian: {
-          950: "#02050E",
-          900: "#050B1A",
-          850: "#081126",
-          800: "#0C1936",
-          700: "#13264F",
-          600: "#1D376E",
+          950: "rgb(var(--c-obsidian-950) / <alpha-value>)",
+          900: "rgb(var(--c-obsidian-900) / <alpha-value>)",
+          850: "rgb(var(--c-obsidian-850) / <alpha-value>)",
+          800: "rgb(var(--c-obsidian-800) / <alpha-value>)",
+          700: "rgb(var(--c-obsidian-700) / <alpha-value>)",
+          600: "rgb(var(--c-obsidian-600) / <alpha-value>)",
         },
         electric: {
-          300: "#67F0FF",
-          400: "#00E5FF",
-          500: "#00B8D9",
-          600: "#0284C7",
+          300: "rgb(var(--c-electric-300) / <alpha-value>)",
+          400: "rgb(var(--c-electric-400) / <alpha-value>)",
+          500: "rgb(var(--c-electric-500) / <alpha-value>)",
+          600: "rgb(var(--c-electric-600) / <alpha-value>)",
         },
         aura: {
-          300: "#C4B5FD",
-          400: "#A78BFA",
-          500: "#8B5CF6",
-          600: "#7C3AED",
+          300: "rgb(var(--c-aura-300) / <alpha-value>)",
+          400: "rgb(var(--c-aura-400) / <alpha-value>)",
+          500: "rgb(var(--c-aura-500) / <alpha-value>)",
+          600: "rgb(var(--c-aura-600) / <alpha-value>)",
         },
       },
       fontFamily: {
@@ -60,16 +60,12 @@ const config: Config = {
         ],
       },
       boxShadow: {
-        "cyan-glow":
-          "0 0 28px -4px rgba(0, 229, 255, 0.42), 0 0 8px -2px rgba(0, 229, 255, 0.25)",
-        "violet-glow":
-          "0 0 32px -6px rgba(139, 92, 246, 0.45), 0 0 10px -2px rgba(139, 92, 246, 0.25)",
-        "card-elevated":
-          "0 24px 60px -16px rgba(2, 5, 14, 0.85), 0 0 0 1px rgba(148, 163, 184, 0.1)",
+        "cyan-glow": "var(--shadow-cyan-glow)",
+        "violet-glow": "var(--shadow-violet-glow)",
+        "card-elevated": "var(--shadow-card-elevated)",
         "book-closed":
           "-18px 34px 68px rgba(0, 0, 0, 0.82), 0 0 54px -10px rgba(0, 229, 255, 0.24), 0 0 72px -14px rgba(139, 92, 246, 0.28)",
-        "book-open":
-          "0 38px 90px -12px rgba(0, 0, 0, 0.88), 0 0 65px -14px rgba(0, 229, 255, 0.18), 0 0 85px -18px rgba(139, 92, 246, 0.22)",
+        "book-open": "var(--shadow-book-open)",
       },
       keyframes: {
         floatBook: {

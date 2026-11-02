@@ -33,7 +33,7 @@ export function BookCover({
         isOpen ? "pointer-events-none select-none" : "pointer-events-auto"
       } ${reducedMotion && isOpen ? "opacity-0" : "opacity-100"}`}
     >
-      <div className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-r-2xl rounded-l-[4px] border border-sky-300/40 bg-[#040814] px-6 py-7 xs:px-8 sm:px-10 sm:py-9 shadow-[18px_28px_68px_rgba(0,0,0,0.92)]">
+      <div className="theme-preserve-dark relative flex h-full w-full flex-col justify-between overflow-hidden rounded-r-2xl rounded-l-[4px] border border-sky-300/40 bg-[#040814] px-6 py-7 xs:px-8 sm:px-10 sm:py-9 shadow-[18px_28px_68px_rgba(0,0,0,0.92)]">
         {/* Lower Cover Graduate & Earth Horizon */}
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[54%] overflow-hidden"

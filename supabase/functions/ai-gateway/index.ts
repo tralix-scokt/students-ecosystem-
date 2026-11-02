@@ -69,11 +69,157 @@ const MODE_INSTRUCTIONS: Record<string, string> = {
     "Mode: STUDY COACH. Help the learner organize realistic study blocks, overcome procrastination, prioritize weak topics, and build sustainable exam habits.",
 };
 
-const SAFETY_SYSTEM_GUARD = `You are the TRALIX AI Master Classroom Teacher inside E-LEARNING ECOSYSTEM.
-CRITICAL SAFETY, HONESTY & EDUCATIONAL RULES:
+function isValidImageDataUrl(raw: unknown): boolean {
+  if (typeof raw !== "string") return false;
+  const trimmed = raw.trim();
+  if (trimmed.length < 32 || trimmed.length > 5_600_000) return false;
+  return /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(
+    trimmed
+  );
+}
+
+const TIME_SENSITIVE_CUE =
+  /\b(current|currently|latest|today|now|present|recent|recently|update|updated|newest|2024|2025|2026|2027|president|prime\s+minister|governor|minister|secretary[- ]general|ceo|monarch|king|pope|population|gdp|exchange\s+rate|price\s+of|who\s+is\s+the|who\s+won|winner\s+of|champion|world\s+cup|olympics|nobel|election|version\s+of|release|news|happened|right\s+now)\b/i;
+
+function cleanLiveSearchQuery(rawPrompt: string): string {
+  return rawPrompt
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(
+      /^(please\s+)?(can\s+you\s+|could\s+you\s+|tell\s+me\s+|explain\s+|what\s+is\s+|what\s+are\s+|who\s+is\s+|who\s+are\s+|when\s+did\s+|where\s+is\s+)/i,
+      ""
+    )
+    .replace(/[?!."'`]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140);
+}
+
+async function fetchTimeoutJson(
+  url: string,
+  timeoutMs = 2800
+): Promise<Record<string, unknown> | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "StudentsEcosystem-AITutor/2.0",
+      },
+      signal: controller.signal,
+    });
+    if (!resp.ok) return null;
+    return (await resp.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchLiveCurrentContextEdge(rawPrompt: string): Promise<{
+  contextBlock: string;
+  sources: Array<{ title: string; url: string }>;
+  isTimeSensitive: boolean;
+}> {
+  const trimmed = rawPrompt.trim();
+  const isTimeSensitive = TIME_SENSITIVE_CUE.test(trimmed);
+  if (trimmed.length < 4 || /^(hi|hello|hey|thanks|thank you|ok|okay)\b/i.test(trimmed)) {
+    return { contextBlock: "", sources: [], isTimeSensitive: false };
+  }
+  const query = cleanLiveSearchQuery(trimmed);
+  if (query.length < 2) {
+    return { contextBlock: "", sources: [], isTimeSensitive };
+  }
+
+  const snippets: Array<{ title: string; snippet: string; url: string }> = [];
+  const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
+    query
+  )}&srlimit=3&utf8=1&format=json&origin=*`;
+  const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(
+    query
+  )}&format=json&no_html=1&skip_disambig=1`;
+
+  const [wikiSearch, ddgData] = await Promise.all([
+    fetchTimeoutJson(wikiSearchUrl, 2600),
+    fetchTimeoutJson(ddgUrl, 2400),
+  ]);
+
+  if (ddgData) {
+    const absText = String(ddgData.AbstractText || "").trim();
+    const absUrl = String(ddgData.AbstractURL || "").trim();
+    const heading = String(ddgData.Heading || query).trim();
+    if (absText.length >= 25) {
+      snippets.push({
+        title: heading,
+        snippet: absText.slice(0, 500),
+        url:
+          absUrl ||
+          `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
+      });
+    }
+  }
+
+  const queryObj = (wikiSearch?.query || {}) as Record<string, unknown>;
+  const hits = Array.isArray(queryObj.search) ? queryObj.search.slice(0, 3) : [];
+  const titles: string[] = [];
+  for (const h of hits) {
+    if (h && typeof h === "object") {
+      const t = String((h as Record<string, unknown>).title || "").trim();
+      if (t) titles.push(t);
+    }
+  }
+
+  if (titles.length > 0) {
+    const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&exchars=520&redirects=1&titles=${encodeURIComponent(
+      titles.slice(0, 2).join("|")
+    )}&format=json&origin=*`;
+    const extractJson = await fetchTimeoutJson(extractUrl, 2400);
+    const pagesObj = (
+      (extractJson?.query as Record<string, unknown> | undefined)?.pages || {}
+    ) as Record<string, Record<string, unknown>>;
+    for (const page of Object.values(pagesObj)) {
+      const pageTitle = String(page?.title || "").trim();
+      const extract = String(page?.extract || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (pageTitle && extract.length >= 30) {
+        const wikiPageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(
+          pageTitle.replace(/\s+/g, "_")
+        )}`;
+        if (!snippets.some((s) => s.url === wikiPageUrl)) {
+          snippets.push({
+            title: pageTitle,
+            snippet: extract.slice(0, 520),
+            url: wikiPageUrl,
+          });
+        }
+      }
+    }
+  }
+
+  if (snippets.length === 0) {
+    return { contextBlock: "", sources: [], isTimeSensitive };
+  }
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const top = snippets.slice(0, 4);
+  const lines = top.map(
+    (s, i) => `[Source ${i + 1}] ${s.title} (${s.url}): ${s.snippet}`
+  );
+  return {
+    contextBlock: `LIVE UP-TO-DATE REFERENCE DATA (Retrieved ${todayIso}):\nUse these current verified facts whenever relevant so your answer reflects the latest real-world facts rather than outdated pre-training cutoffs:\n${lines.join("\n")}`,
+    sources: top.map((s) => ({ title: s.title, url: s.url })),
+    isTimeSensitive,
+  };
+}
+
+const SAFETY_SYSTEM_GUARD = `You are the TRALIX AI Master Classroom Teacher inside Students Ecosystem (E-LEARNING ECOSYSTEM).
+CRITICAL SAFETY, HONESTY & UP-TO-DATE UNIVERSAL Q&A RULES:
 1. Age-appropriate & safe: Support secondary school (including minors aged 11–18), university, and polytechnic students safely. Strictly refuse requests involving self-harm, violence, sexual content, hate speech, dangerous activities, live-exam cheating, or illegal acts.
-2. Academic honesty: Never claim to be an official WAEC, NECO, JAMB, or university examiner. Never fabricate copyrighted official past-paper citations or pretend unverified facts are official syllabus guarantees.
-3. Pedagogical clarity: Speak warmly like a real teacher. Answer basic questions simply and directly without unnecessary bloat, and explain full topics step-by-step with clear headings, analogies, and visual diagrams when helpful.`;
+2. Answer ANY safe question with CURRENT, UP-TO-DATE facts: Answer academic, scientific, technical, general-knowledge, and current-affairs questions accurately using today's date and any LIVE UP-TO-DATE REFERENCE DATA provided. Never present outdated officeholders or stale facts as current.
+3. Academic honesty: Never claim to be an official WAEC, NECO, JAMB, or university examiner. Never fabricate copyrighted official past-paper citations.
+4. Pedagogical clarity: Speak warmly like a real teacher. Answer basic questions simply and directly without unnecessary bloat, and explain full topics step-by-step with clear headings, analogies, and visual diagrams when helpful.`;
 
 function buildTeacherPrompt(params: {
   academicContext: string;
@@ -81,15 +227,37 @@ function buildTeacherPrompt(params: {
   mode: string;
   explanationStyle: string;
   visualPreference: string;
+  hasImageAttachment?: boolean;
+  liveGroundedContext?: string;
 }): string {
+  const todayIso = new Date().toISOString().slice(0, 10);
   const visualDirective =
     params.visualPreference === "none"
       ? "VISUAL PREFERENCE: Text-only mode selected. Do NOT output any ```tutor-diagram``` block."
       : params.visualPreference === "always"
         ? "VISUAL PREFERENCE: Visual Learner Mode ON. You MUST include exactly ONE valid ```tutor-diagram``` JSON block illustrating the core concept or problem."
         : `VISUAL PREFERENCE: Auto (Like a Real Classroom Teacher). Include ONE valid \`\`\`tutor-diagram\`\`\` JSON block WHENEVER a diagram, labeled picture, circuit, triangle/vector sketch, graph, fraction bar, process cycle, or comparison chart will help the student SEE and understand the topic faster (or whenever the student asks to draw/show/illustrate). Skip diagrams for simple greetings, 1-line factual lookups, or short conversational follow-ups.`;
+  const visionDirective = params.hasImageAttachment
+    ? `\nPHOTO / IMAGE VISION ANALYSIS MODE ACTIVE:\n- The student attached a photo/picture. Carefully inspect every detail in the image (printed or handwritten text, equations, diagrams, graphs, circuits, code, textbook pages, or objects).\n- Briefly state/transcribe what is shown in the picture first, then solve or explain everything in the picture step-by-step.\n`
+    : "";
+  const liveWebDirective = params.liveGroundedContext
+    ? `\n${params.liveGroundedContext}\n`
+    : "";
+  return `TODAY'S REAL-WORLD DATE: ${todayIso}.\n${SAFETY_SYSTEM_GUARD}${visionDirective}${liveWebDirective}` +
+    renderTeacherPromptTail(params, visualDirective);
+}
 
-  return `${SAFETY_SYSTEM_GUARD}
+function renderTeacherPromptTail(
+  params: {
+    academicContext: string;
+    subject: string | null;
+    mode: string;
+    explanationStyle: string;
+  },
+  visualDirective: string
+): string {
+
+  return `
 
 TEACHING STYLE:
 - Speak naturally, warmly, and encouragingly ("Let's walk through this together...", "Picture this in everyday life...").
@@ -117,6 +285,13 @@ ${MODE_INSTRUCTIONS[params.mode] || MODE_INSTRUCTIONS.explain_topic}
 At the very end of your response, include a final section titled "Suggested Follow-up Questions:" with 3 concise bullet-point questions the student can ask next.`;
 }
 
+type MessageContentPart =
+  | { type: "text"; text: string }
+  | {
+      type: "image_url";
+      image_url: { url: string; detail?: "auto" | "low" | "high" };
+    };
+
 interface ProviderResult {
   content: string;
   provider: string;
@@ -124,16 +299,21 @@ interface ProviderResult {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  webCitations?: Array<{ title: string; url: string }>;
 }
 
 async function callProviderChain(params: {
-  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string | MessageContentPart[];
+  }>;
   maxTokens: number;
   temperature: number;
   preferredProvider: string;
   defaultModel: string;
   fallbackModel: string;
   jsonMode?: boolean;
+  preferLiveWebSearch?: boolean;
 }): Promise<ProviderResult> {
   const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim() || "";
   const openRouterPrimary = Deno.env.get("OPENROUTER_API_KEY")?.trim() || "";
@@ -150,9 +330,25 @@ async function callProviderChain(params: {
     apiKey: string;
     model: string;
     extraHeaders?: Record<string, string>;
+    extraBody?: Record<string, unknown>;
   };
 
   const candidates: Candidate[] = [];
+  if (params.preferLiveWebSearch && !params.jsonMode && openRouterPrimary) {
+    candidates.push({
+      provider: "openrouter-live-web",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      apiKey: openRouterPrimary,
+      model: params.fallbackModel || "openai/gpt-4o-mini",
+      extraHeaders: {
+        "HTTP-Referer": "https://students-ecosystem.vercel.app",
+        "X-Title": "Students Ecosystem",
+      },
+      extraBody: {
+        plugins: [{ id: "web", max_results: 4 }],
+      },
+    });
+  }
   const pushOpenAi = () => {
     if (openAiKey) {
       candidates.push({
@@ -214,6 +410,7 @@ async function callProviderChain(params: {
         messages: params.messages,
         max_tokens: boundedTokens,
         temperature: params.temperature,
+        ...(cand.extraBody || {}),
       };
       if (params.jsonMode) {
         bodyPayload.response_format = { type: "json_object" };
@@ -237,12 +434,27 @@ async function callProviderChain(params: {
       }
 
       const data = await resp.json();
-      const content = String(
-        data?.choices?.[0]?.message?.content ?? ""
-      ).trim();
+      const messageObj = data?.choices?.[0]?.message;
+      const content = String(messageObj?.content ?? "").trim();
       if (!content) {
         lastError = `${cand.provider}_EMPTY_RESPONSE`;
         continue;
+      }
+
+      const webCitations: Array<{ title: string; url: string }> = [];
+      const annotations = Array.isArray(messageObj?.annotations)
+        ? messageObj.annotations
+        : [];
+      for (const ann of annotations) {
+        const cite = ann?.url_citation || ann;
+        const url = String(cite?.url || "").trim();
+        const title = String(cite?.title || url).trim();
+        if (
+          url.startsWith("http") &&
+          !webCitations.some((w) => w.url === url)
+        ) {
+          webCitations.push({ title: title.slice(0, 90), url });
+        }
       }
 
       return {
@@ -252,6 +464,7 @@ async function callProviderChain(params: {
         promptTokens: Number(data?.usage?.prompt_tokens || 0),
         completionTokens: Number(data?.usage?.completion_tokens || 0),
         totalTokens: Number(data?.usage?.total_tokens || 0),
+        webCitations,
       };
     } catch (err) {
       lastError =
@@ -369,7 +582,27 @@ Deno.serve(async (req: Request) => {
 
     // Deterministic input safety validation before reserving quota or calling providers
     if (action === "tutor_chat") {
-      const safety = evaluatePromptSafety(String(body?.message || ""));
+      const rawMessage = String(body?.message || "").trim();
+      const rawImg = body?.imageDataUrl ? String(body.imageDataUrl).trim() : "";
+      if (rawImg && !isValidImageDataUrl(rawImg)) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error:
+              "Attached photo format is invalid or exceeds the 4 MB upload limit. Please upload a PNG, JPG, or WEBP image.",
+          }),
+          {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          }
+        );
+      }
+      const effectivePrompt =
+        rawMessage ||
+        (rawImg
+          ? "Please carefully analyze this photo and explain or solve what is shown step by step."
+          : "");
+      const safety = evaluatePromptSafety(effectivePrompt);
       if (!safety.safe) {
         return new Response(
           JSON.stringify({
@@ -477,7 +710,20 @@ Deno.serve(async (req: Request) => {
     // ACTION 1: CONVERSATIONAL AI TUTOR (REAL CLASSROOM TEACHER + DIAGRAMS)
     // ========================================================================
     if (action === "tutor_chat") {
-      const userPrompt = String(body?.message || "").trim();
+      const rawUserText = String(body?.message || "").trim();
+      const imageDataUrl =
+        body?.imageDataUrl && isValidImageDataUrl(body.imageDataUrl)
+          ? String(body.imageDataUrl).trim()
+          : "";
+      const userPrompt =
+        rawUserText ||
+        "Please carefully inspect this photo and explain or solve what is shown step by step.";
+      const storedUserMessageContent = imageDataUrl
+        ? rawUserText
+          ? `[Photo Attached] ${rawUserText}`
+          : "[Photo Attached] Analyze and explain what is in this picture."
+        : userPrompt;
+
       const mode = VALID_MODES.has(String(body?.learningMode))
         ? String(body.learningMode)
         : "explain_topic";
@@ -514,10 +760,12 @@ Deno.serve(async (req: Request) => {
             }));
         }
       } else {
+        const titleSeed =
+          rawUserText || (imageDataUrl ? "Photo Study Analysis" : userPrompt);
         const autoTitle =
-          userPrompt.length > 64
-            ? `${userPrompt.slice(0, 61).trim()}...`
-            : userPrompt;
+          titleSeed.length > 64
+            ? `${titleSeed.slice(0, 61).trim()}...`
+            : titleSeed;
         const { data: createdConv, error: convErr } = await supabase
           .from("ai_tutor_conversations")
           .insert({
@@ -542,25 +790,42 @@ Deno.serve(async (req: Request) => {
         conversationId = createdConv.id;
       }
 
+      const liveGrounding = rawUserText
+        ? await fetchLiveCurrentContextEdge(rawUserText)
+        : { contextBlock: "", sources: [], isTimeSensitive: false };
+
       const systemMessage = buildTeacherPrompt({
         academicContext,
         subject,
         mode,
         explanationStyle,
         visualPreference,
+        hasImageAttachment: Boolean(imageDataUrl),
+        liveGroundedContext: liveGrounding.contextBlock,
       });
+
+      const userTurnContent: string | MessageContentPart[] = imageDataUrl
+        ? [
+            { type: "text", text: userPrompt },
+            {
+              type: "image_url",
+              image_url: { url: imageDataUrl, detail: "high" },
+            },
+          ]
+        : userPrompt;
 
       const result = await callProviderChain({
         messages: [
           { role: "system", content: systemMessage },
           ...historyMessages,
-          { role: "user", content: userPrompt },
+          { role: "user", content: userTurnContent },
         ],
         maxTokens: Math.min(Math.max(maxTokens, 1500), 2048),
         temperature: 0.4,
         preferredProvider,
         defaultModel,
         fallbackModel,
+        preferLiveWebSearch: liveGrounding.isTimeSensitive && !imageDataUrl,
       });
 
       await supabase.from("ai_tutor_messages").insert([
@@ -568,7 +833,7 @@ Deno.serve(async (req: Request) => {
           conversation_id: conversationId,
           user_id: user.id,
           role: "user",
-          content: userPrompt,
+          content: storedUserMessageContent,
           learning_mode: mode,
           is_ai_generated: false,
           is_verified_educational_material: false,
@@ -634,12 +899,26 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      const mergedSources: Array<{ title: string; url: string }> = [];
+      for (const src of [
+        ...(result.webCitations || []),
+        ...liveGrounding.sources,
+      ]) {
+        if (src.url && !mergedSources.some((ex) => ex.url === src.url)) {
+          mergedSources.push(src);
+        }
+        if (mergedSources.length >= 4) break;
+      }
+
       return new Response(
         JSON.stringify({
           ok: true,
           conversationId,
           reply: result.content,
           suggestedQuestions: followUps,
+          liveSources: mergedSources,
+          usedLiveWeb:
+            mergedSources.length > 0 || result.provider === "openrouter-live-web",
           provider: result.provider,
           model: result.model,
           isAiGenerated: true,

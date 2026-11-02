@@ -109,11 +109,18 @@ export interface TutorConversationRecord {
   createdAt: string;
 }
 
+export interface TutorLiveSource {
+  title: string;
+  url: string;
+}
+
 export interface TutorMessageRecord {
   id: string;
   conversationId: string;
   role: "user" | "assistant";
   content: string;
+  imageDataUrl?: string | null;
+  liveSources?: TutorLiveSource[];
   learningMode: TutorLearningMode;
   provider: string | null;
   model: string | null;

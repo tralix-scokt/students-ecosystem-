@@ -1160,7 +1160,9 @@ export function TutorVisualDiagramCard({
           </button>
         </div>
 
-        <DiagramCanvas spec={spec} />
+        <div className="theme-preserve-dark overflow-hidden rounded-xl bg-[#050b1a]">
+          <DiagramCanvas spec={spec} />
+        </div>
 
         {(spec.caption || spec.takeaway) && (
           <div className="mt-3 space-y-1 border-t border-white/10 pt-2.5 text-xs">

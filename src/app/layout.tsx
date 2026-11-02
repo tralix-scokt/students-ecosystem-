@@ -7,11 +7,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "E-LEARNING ECOSYSTEM — Powered by TRALIX AI",
-    template: "%s | E-LEARNING ECOSYSTEM",
+    default: "Students Ecosystem — Powered by TRALIX AI",
+    template: "%s | Students Ecosystem",
   },
   description:
-    "Your Future Starts With Knowledge. Learn with purpose. Understand with confidence. Prepare for success. Powered by TRALIX AI.",
+    "Learn • Grow • Achieve. Your Complete Learning and Success Platform.",
 };
 
 export const viewport: Viewport = {
@@ -20,13 +20,18 @@ export const viewport: Viewport = {
   themeColor: "#02050e",
 };
 
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('se-theme-preference');if(t==='light'||t==='dark'||t==='default'){document.documentElement.setAttribute('data-theme',t);if(t==='light'){document.documentElement.classList.remove('dark');document.documentElement.style.colorScheme='light';}else{document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}}}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" data-theme="default" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-screen bg-obsidian-950 font-sans text-white antialiased">
         <a
           href="#main-content"

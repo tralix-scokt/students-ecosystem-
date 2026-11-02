@@ -1,16 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Check,
   Download,
   Loader2,
   LogOut,
+  Moon,
+  Palette,
   PenSquare,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
+  Sun,
   Trash2,
 } from "lucide-react";
 import { DashboardErrorState } from "@/components/dashboard/DashboardErrorState";
@@ -20,6 +25,13 @@ import { signOutLearner } from "@/lib/auth/authService";
 import { useStudentDashboardData } from "@/lib/dashboard/useStudentDashboardData";
 import { clearAllOfflineNotesCaches } from "@/lib/notes/notesService";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import {
+  applyEcosystemTheme,
+  ECOSYSTEM_THEME_OPTIONS,
+  getStoredEcosystemTheme,
+  THEME_CHANGE_EVENT,
+  type EcosystemTheme,
+} from "@/lib/theme/themePreference";
 
 export function SettingsPageClient() {
   const router = useRouter();
@@ -30,6 +42,22 @@ export function SettingsPageClient() {
   const [confirmPurgeText, setConfirmPurgeText] = useState("");
   const [purgingData, setPurgingData] = useState(false);
   const [privacyFeedback, setPrivacyFeedback] = useState<string | null>(null);
+  const [activeTheme, setActiveTheme] = useState<EcosystemTheme>("default");
+
+  useEffect(() => {
+    setActiveTheme(getStoredEcosystemTheme());
+    const onThemeChange = (e: Event) => {
+      const detail = (e as CustomEvent<EcosystemTheme>).detail;
+      if (detail) setActiveTheme(detail);
+    };
+    window.addEventListener(THEME_CHANGE_EVENT, onThemeChange);
+    return () => window.removeEventListener(THEME_CHANGE_EVENT, onThemeChange);
+  }, []);
+
+  const handleThemeSelect = (nextTheme: EcosystemTheme) => {
+    setActiveTheme(nextTheme);
+    applyEcosystemTheme(nextTheme);
+  };
 
   if (status === "loading") {
     return <DashboardSkeleton />;
@@ -216,6 +244,121 @@ export function SettingsPageClient() {
             </Link>
           )}
         </div>
+
+        {/* Appearance & Theme Selector (Default Blue Neon / Dark / Light) */}
+        <section
+          aria-labelledby="appearance-theme-heading"
+          className="rounded-3xl border border-white/[0.08] hardcover-surface p-6 shadow-card-elevated sm:p-8"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2
+                id="appearance-theme-heading"
+                className="flex items-center gap-2 font-display text-xl font-bold text-white sm:text-2xl"
+              >
+                <Palette className="h-5 w-5 text-electric-400" aria-hidden="true" />
+                <span>Appearance &amp; Theme</span>
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Choose between Light, Dark, or the signature Default (Blue Neon)
+                theme. Changes apply immediately across your workspace.
+              </p>
+            </div>
+          </div>
+
+          <div
+            role="radiogroup"
+            aria-label="Select application theme"
+            className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3"
+          >
+            {ECOSYSTEM_THEME_OPTIONS.map((opt) => {
+              const selected = activeTheme === opt.id;
+              const Icon =
+                opt.id === "light" ? Sun : opt.id === "dark" ? Moon : Sparkles;
+
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => handleThemeSelect(opt.id)}
+                  className={`group relative flex flex-col justify-between rounded-2xl border p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-400 ${
+                    selected
+                      ? "border-electric-400 bg-electric-500/10 shadow-cyan-glow"
+                      : "border-white/[0.09] bg-obsidian-950/70 hover:border-electric-400/45"
+                  }`}
+                >
+                  {/* Visual Swatch Preview */}
+                  <div
+                    aria-hidden="true"
+                    className={`theme-preserve-dark mb-3.5 flex h-20 w-full flex-col justify-between overflow-hidden rounded-xl border p-2.5 ${
+                      opt.id === "default"
+                        ? "border-[#00E5FF]/40 bg-gradient-to-br from-[#07132c] via-[#040a18] to-[#120b2e]"
+                        : opt.id === "dark"
+                          ? "border-zinc-700 bg-gradient-to-br from-[#18181d] to-[#0b0b0e]"
+                          : "border-slate-300 bg-gradient-to-br from-[#ffffff] to-[#e2e8f0]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`h-2 w-12 rounded-full ${
+                          opt.id === "default"
+                            ? "bg-gradient-to-r from-[#00E5FF] to-[#8B5CF6]"
+                            : opt.id === "dark"
+                              ? "bg-zinc-400"
+                              : "bg-sky-600"
+                        }`}
+                      />
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          opt.id === "default"
+                            ? "bg-[#00E5FF]"
+                            : opt.id === "dark"
+                              ? "bg-zinc-500"
+                              : "bg-violet-600"
+                        }`}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div
+                        className={`h-2 w-4/5 rounded ${
+                          opt.id === "light" ? "bg-slate-300" : "bg-white/20"
+                        }`}
+                      />
+                      <div
+                        className={`h-2 w-3/5 rounded ${
+                          opt.id === "light" ? "bg-slate-200" : "bg-white/10"
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 font-display text-sm font-bold text-white">
+                        <Icon className="h-4 w-4 text-electric-400" aria-hidden="true" />
+                        <span>{opt.label}</span>
+                      </span>
+                      {selected ? (
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-electric-500 text-obsidian-950">
+                          <Check className="h-3 w-3 stroke-[3]" />
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+                          {opt.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+                      {opt.description}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         <section className="rounded-3xl border border-white/[0.08] hardcover-surface p-6 shadow-card-elevated sm:p-8">
           <h1 className="font-display text-2xl font-bold text-white">

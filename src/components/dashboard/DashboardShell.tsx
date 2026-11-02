@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Command,
   FileText,
   GraduationCap,
   LayoutDashboard,
@@ -25,6 +26,8 @@ import {
   X,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { CommandPaletteModal } from "@/components/dashboard/CommandPaletteModal";
+import { QuickFocusPomodoro } from "@/components/dashboard/QuickFocusPomodoro";
 import { DASHBOARD_NAV_ITEMS } from "@/data/dashboardNavigation";
 import { formatCategoryLabel } from "@/data/onboardingOptions";
 import { signOutLearner } from "@/lib/auth/authService";
@@ -76,6 +79,7 @@ export function DashboardShell({
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -110,13 +114,19 @@ export function DashboardShell({
     academicProfile,
   });
 
-  // Close menus on Escape or outside click
+  // Close menus on Escape or outside click + Global ⌘K / Ctrl+K Command Palette
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+        return;
+      }
       if (e.key === "Escape") {
         setProfileMenuOpen(false);
         setMobileDrawerOpen(false);
         setSearchFocused(false);
+        setCommandPaletteOpen(false);
       }
     }
 
@@ -470,8 +480,27 @@ export function DashboardShell({
               )}
             </div>
 
-            {/* Right Controls: Mobile Search Toggle, Notifications, Profile Menu */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            {/* Right Controls: Command Palette, Focus Pomodoro, Mobile Search Toggle, Notifications, Profile Menu */}
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* ⌘K Command Palette Trigger */}
+              <button
+                type="button"
+                onClick={() => setCommandPaletteOpen(true)}
+                aria-label="Open command palette"
+                title="Quick Command Palette (⌘K / Ctrl+K)"
+                className="hidden h-10 items-center gap-1.5 rounded-xl border border-slate-800 bg-obsidian-900/90 px-2.5 text-xs font-semibold text-slate-300 transition-colors hover:border-electric-400/45 hover:text-electric-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-400 md:inline-flex"
+              >
+                <Command className="h-3.5 w-3.5 text-electric-400" aria-hidden="true" />
+                <span className="font-mono text-[11px]">⌘K</span>
+              </button>
+
+              {/* Deep Focus Pomodoro Sprint Timer */}
+              <QuickFocusPomodoro
+                defaultSubject={
+                  academicProfile?.selected_subjects?.[0] || "General"
+                }
+              />
+
               {/* Mobile Search Toggle */}
               <button
                 type="button"
@@ -691,6 +720,14 @@ export function DashboardShell({
         >
           {children}
         </main>
+
+        <CommandPaletteModal
+          open={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          publishedCourses={publishedCourses}
+          ongoingCourses={ongoingCourses}
+          academicProfile={academicProfile}
+        />
 
         {/* ===================================================================
             MOBILE FIXED BOTTOM NAVIGATION

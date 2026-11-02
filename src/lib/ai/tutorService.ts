@@ -149,6 +149,7 @@ export async function deleteTutorConversation(
 
 export async function sendTutorPrompt(params: {
   message: string;
+  imageDataUrl?: string | null;
   learningMode: TutorLearningMode;
   explanationStyle: TutorExplanationStyle;
   visualPreference?: TutorVisualAidPreference;
@@ -160,6 +161,7 @@ export async function sendTutorPrompt(params: {
   return invokeAiGateway({
     action: "tutor_chat",
     message: params.message,
+    imageDataUrl: params.imageDataUrl || undefined,
     learningMode: params.learningMode,
     explanationStyle: params.explanationStyle,
     visualPreference: params.visualPreference || "auto",

@@ -573,6 +573,83 @@ export function formatTutorContentForSavedNote(rawContent: string): string {
     .join("\n\n");
 }
 
+export interface InstantStudyFlashcard {
+  front: string;
+  back: string;
+}
+
+export function extractFlashcardsFromTutorReply(
+  rawContent: string
+): InstantStudyFlashcard[] {
+  const cleaned = formatTutorContentForSavedNote(rawContent);
+  const cards: InstantStudyFlashcard[] = [];
+
+  // 1. Extract### Headings + following paragraph/bullets
+  const sections = cleaned.split(/\n(?=###?\s+)/);
+  for (const sec of sections) {
+    const lines = sec
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (lines.length >= 2 && /^###?\s+/.test(lines[0])) {
+      const heading = lines[0]
+        .replace(/^###?\s+/, "")
+        .replace(/^\d+[.)]\s*/, "")
+        .trim();
+      const body = lines
+        .slice(1, 4)
+        .join(" ")
+        .replace(/\*\*/g, "")
+        .slice(0, 220)
+        .trim();
+      if (heading.length >= 3 && body.length >= 12) {
+        cards.push({ front: heading, back: body });
+      }
+    }
+  }
+
+  // 2. Extract **Bold Term**: definition lines
+  const boldMatches = Array.from(
+    cleaned.matchAll(/\*\*([^*]{3,55})\*\*\s*[:—-]\s*([^\n]{12,200})/g)
+  );
+  for (const m of boldMatches) {
+    if (cards.length >= 6) break;
+    const front = m[1].trim();
+    const back = m[2].replace(/\*\*/g, "").trim();
+    if (!cards.some((c) => c.front.toLowerCase() === front.toLowerCase())) {
+      cards.push({ front, back });
+    }
+  }
+
+  // 3. Fallback: split clean sentences into Q&A summary card if reply was short
+  if (cards.length === 0 && cleaned.length >= 20) {
+    const sentences = cleaned
+      .replace(/\*\*/g, "")
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 12);
+    if (sentences.length >= 2) {
+      cards.push({
+        front: "Core Concept Summary",
+        back: sentences.slice(0, 2).join(" ").slice(0, 240),
+      });
+      if (sentences.length >= 3) {
+        cards.push({
+          front: "Key Takeaway",
+          back: sentences.slice(2, 4).join(" ").slice(0, 240),
+        });
+      }
+    } else {
+      cards.push({
+        front: "Quick Study Note",
+        back: cleaned.replace(/\*\*/g, "").slice(0, 240),
+      });
+    }
+  }
+
+  return cards.slice(0, 6);
+}
+
 /**
  * Builds the master classroom teacher system prompt shared by Next.js `/api/ai/gateway`
  * (and mirrored in `supabase/functions/ai-gateway/index.ts`).
@@ -585,7 +662,10 @@ export function buildMasterTeacherSystemPrompt(params: {
   modeDescription: string;
   explanationStyle: TutorExplanationStyle | string;
   visualPreference: TutorVisualAidPreference;
+  hasImageAttachment?: boolean;
+  liveGroundedContext?: string;
 }): string {
+  const todayIso = new Date().toISOString().slice(0, 10);
   const visualDirective =
     params.visualPreference === "none"
       ? "VISUAL PREFERENCE: Text-only mode selected. Do NOT output any ```tutor-diagram``` block."
@@ -593,11 +673,25 @@ export function buildMasterTeacherSystemPrompt(params: {
         ? "VISUAL PREFERENCE: Visual Learner Mode ON. You MUST include exactly ONE valid ```tutor-diagram``` JSON block illustrating the core concept or problem."
         : `VISUAL PREFERENCE: Auto (Like a Real Classroom Teacher). Include ONE valid \`\`\`tutor-diagram\`\`\` JSON block WHENEVER a diagram, labeled picture, circuit, triangle/vector sketch, graph, fraction bar, process cycle, or comparison chart will help the student SEE and understand the topic faster (or whenever the student asks to draw/show/illustrate). Skip diagrams for simple greetings, 1-line factual lookups, or short conversational follow-ups.`;
 
-  return `You are the TRALIX AI Master Classroom Teacher inside E-LEARNING ECOSYSTEM.
+  const visionDirective = params.hasImageAttachment
+    ? `\nPHOTO / IMAGE VISION ANALYSIS MODE ACTIVE:
+- The student has attached an image/photo. Carefully inspect every visible detail in the picture (handwritten or printed questions, mathematical equations, diagrams, charts, circuits, lab setups, code, slides, or objects).
+- First, briefly state or transcribe the key problem/elements you see in the picture so the student knows you read it accurately.
+- Then analyze, solve, or explain everything in the picture step-by-step in clear, patient classroom language.\n`
+    : "";
 
-1. SAFETY & HONESTY RULES:
+  const liveWebDirective = params.liveGroundedContext
+    ? `\n${params.liveGroundedContext}\n`
+    : "";
+
+  return `You are the TRALIX AI Master Classroom Teacher inside Students Ecosystem (E-LEARNING ECOSYSTEM).
+TODAY'S REAL-WORLD DATE: ${todayIso}.
+
+1. SAFETY, UNIVERSAL Q&A & UP-TO-DATE ACCURACY:
 - Safe & age-appropriate for secondary school (JSS 1–SS 3, ages 11–18), university, and polytechnic students. Strictly refuse self-harm, violence, sexual content, hate speech, dangerous instructions, or live-exam cheating.
-- Never claim official WAEC, NECO, JAMB, or university endorsement, and never fabricate verbatim past-paper citations.
+- Answer ANY safe question the user asks—academic subjects, math, science, programming, general knowledge, current events, current leaders/officeholders, modern technology, history, or everyday study questions—with accurate, CURRENT, up-to-date information as of ${todayIso}.
+- Whenever LIVE UP-TO-DATE REFERENCE DATA is provided below (or via live web search), ALWAYS prioritize those current facts over older pre-training cutoffs and never give outdated past officeholders or stale statistics as if they were still current.
+- Never claim official WAEC, NECO, JAMB, or university endorsement, and never fabricate verbatim past-paper citations.${visionDirective}${liveWebDirective}
 
 2. TEACH LIKE A WARM, SKILLED REAL CLASSROOM TEACHER:
 - Speak naturally, warmly, and encouragingly ("Let's walk through this together...", "Picture this in everyday life...").

@@ -62,7 +62,7 @@ export function StandingBookEntry() {
   return (
     <main
       id="main-content"
-      className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[#020510] px-4 py-6 sm:py-10"
+      className="theme-preserve-dark relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[#020510] px-4 py-6 sm:py-10"
     >
       {/* Studio Ambient Bokeh Lighting (Royal Blue, Cyan & Violet-Magenta) */}
       <div
