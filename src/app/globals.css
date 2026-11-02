@@ -1,0 +1,279 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background-color: #02050e;
+    color: #f8fafc;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: #02050e;
+    color: #f8fafc;
+    overflow-x: clip;
+  }
+
+  ::selection {
+    background-color: rgba(0, 229, 255, 0.24);
+    color: #ffffff;
+  }
+}
+
+/* ============================================================================
+   Atmospheric Backgrounds & Studio Lighting
+   ============================================================================ */
+
+.ecosystem-grid-bg {
+  background-image: linear-gradient(
+      to right,
+      rgba(148, 163, 184, 0.045) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(148, 163, 184, 0.045) 1px,
+      transparent 1px
+    );
+  background-size: 56px 56px;
+  mask-image: radial-gradient(
+    ellipse 80% 65% at 50% 35%,
+    #000000 35%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 80% 65% at 50% 35%,
+    #000000 35%,
+    transparent 100%
+  );
+}
+
+.rim-border-card {
+  background: linear-gradient(165deg, rgba(13, 27, 58, 0.84) 0%, rgba(5, 11, 26, 0.94) 100%);
+  box-shadow:
+    inset 0 1px 0 0 rgba(0, 229, 255, 0.2),
+    inset 0 -1px 0 0 rgba(139, 92, 246, 0.16),
+    0 24px 54px -18px rgba(0, 0, 0, 0.85);
+}
+
+/* ============================================================================
+   3D Hardcover Book Stage & Physical Materials
+   ============================================================================ */
+
+.book-perspective {
+  perspective: 2200px;
+  -webkit-perspective: 2200px;
+}
+
+.book-perspective-mobile {
+  perspective: 1650px;
+  -webkit-perspective: 1650px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Premium Midnight Navy Hardcover Leatherette with Cyan + Violet Rim Lighting */
+.hardcover-surface {
+  background:
+    radial-gradient(120% 90% at 88% 12%, rgba(0, 229, 255, 0.14) 0%, transparent 52%),
+    radial-gradient(110% 85% at 10% 88%, rgba(139, 92, 246, 0.18) 0%, transparent 55%),
+    linear-gradient(148deg, #0d1d3e 0%, #071128 46%, #040917 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(103, 240, 255, 0.42),
+    inset -1px 0 1px rgba(0, 229, 255, 0.34),
+    inset 1px 0 2px rgba(167, 139, 250, 0.28),
+    inset 0 -1px 2px rgba(139, 92, 246, 0.38),
+    -18px 32px 65px rgba(0, 0, 0, 0.85),
+    0 0 46px -8px rgba(0, 229, 255, 0.22),
+    0 0 64px -12px rgba(139, 92, 246, 0.28);
+}
+
+/* Subtle tactile weave texture over hardcover board */
+.hardcover-grain {
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 0),
+    radial-gradient(rgba(0, 229, 255, 0.025) 1px, transparent 0);
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+}
+
+/* Bookmaker's pressed hinge groove near the left spine */
+.hardcover-hinge-groove {
+  background: linear-gradient(
+    90deg,
+    rgba(2, 5, 14, 0.82) 0%,
+    rgba(2, 5, 14, 0.92) 45%,
+    rgba(103, 240, 255, 0.16) 75%,
+    transparent 100%
+  );
+}
+
+/* Curved 3D Hardcover Spine */
+.book-spine-surface {
+  background: linear-gradient(
+    90deg,
+    #11224a 0%,
+    #1c356d 20%,
+    #0b1734 55%,
+    #050b1b 88%,
+    #02050d 100%
+  );
+  box-shadow:
+    inset 1px 0 1px rgba(167, 139, 250, 0.45),
+    inset -1px 0 2px rgba(0, 0, 0, 0.85),
+    -8px 12px 28px rgba(0, 0, 0, 0.75);
+}
+
+/* Stacked Paper Edges (Vertical Fore-edge) */
+.paper-fore-edge-vertical {
+  background-color: #cbd5e1;
+  background-image:
+    linear-gradient(
+      to bottom,
+      rgba(15, 23, 42, 0.36) 0%,
+      rgba(255, 255, 255, 0.12) 15%,
+      rgba(15, 23, 42, 0.18) 85%,
+      rgba(15, 23, 42, 0.45) 100%
+    ),
+    repeating-linear-gradient(
+      90deg,
+      #e2e8f0 0px,
+      #cbd5e1 1px,
+      #64748b 2px,
+      #dce5f0 3px
+    );
+  box-shadow:
+    inset 2px 0 4px rgba(2, 6, 23, 0.45),
+    inset -1px 0 2px rgba(0, 229, 255, 0.35);
+}
+
+/* Stacked Paper Edges (Horizontal Bottom Tail-edge) */
+.paper-fore-edge-horizontal {
+  background-color: #cbd5e1;
+  background-image:
+    linear-gradient(
+      to right,
+      rgba(15, 23, 42, 0.45) 0%,
+      rgba(255, 255, 255, 0.1) 25%,
+      rgba(255, 255, 255, 0.1) 75%,
+      rgba(15, 23, 42, 0.42) 100%
+    ),
+    repeating-linear-gradient(
+      180deg,
+      #dbe4ef 0px,
+      #94a3b8 1px,
+      #475569 2px,
+      #cbd5e1 3px
+    );
+}
+
+/* Open Book Interior Illuminated Dark-Navy Pages */
+.book-interior-page-left {
+  background:
+    radial-gradient(95% 75% at 15% 15%, rgba(0, 229, 255, 0.065) 0%, transparent 60%),
+    linear-gradient(
+      90deg,
+      #09152f 0%,
+      #0a1733 76%,
+      #071127 93%,
+      #030815 100%
+    );
+  box-shadow:
+    inset -22px 0 32px -12px rgba(1, 4, 12, 0.88),
+    inset 1px 1px 0 rgba(103, 240, 255, 0.14);
+}
+
+.book-interior-page-right {
+  background:
+    radial-gradient(95% 80% at 82% 22%, rgba(139, 92, 246, 0.09) 0%, transparent 62%),
+    radial-gradient(85% 70% at 75% 85%, rgba(0, 229, 255, 0.065) 0%, transparent 58%),
+    linear-gradient(
+      270deg,
+      #09152f 0%,
+      #0a1733 76%,
+      #071127 93%,
+      #030815 100%
+    );
+  box-shadow:
+    inset 22px 0 32px -12px rgba(1, 4, 12, 0.88),
+    inset -1px 1px 0 rgba(167, 139, 250, 0.16);
+}
+
+/* Smooth 3D Page Turn Sheet between Login & Registration spreads */
+@keyframes turnSpreadPage {
+  0% {
+    opacity: 1;
+    transform: rotateY(0deg);
+  }
+  55% {
+    opacity: 0.92;
+    transform: rotateY(-95deg);
+  }
+  100% {
+    opacity: 0;
+    transform: rotateY(-175deg);
+  }
+}
+
+.animate-page-turn {
+  transform-origin: left center;
+  animation: turnSpreadPage 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Desktop (>= 880px) Symmetric Center-Spine 3D Choreography */
+@media (min-width: 880px) {
+  .book-assembly-closed {
+    transform: translateX(-25%);
+  }
+
+  .book-assembly-open {
+    transform: translateX(0%);
+  }
+
+  .book-left-wing {
+    transform-origin: right center;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  .book-left-wing-closed {
+    transform: rotateY(180deg);
+  }
+
+  .book-left-wing-open {
+    transform: rotateY(0deg);
+  }
+}
+
+/* ============================================================================
+   Accessibility — Reduced Motion Support
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 120ms !important;
+  }
+}
