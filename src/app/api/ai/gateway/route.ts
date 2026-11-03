@@ -1,3 +1,4 @@
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isValidTutorImageDataUrl } from "@/lib/ai/imageAttachment";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/lib/ai/types";
 import { buildMasterTeacherSystemPrompt } from "@/lib/ai/visualTeaching";
 import {
+  extractAiJsonPayload,
   runServerProviderCompletion,
   type AiMessageContentPart,
 } from "@/lib/ai/server-gateway";
@@ -20,7 +22,11 @@ import {
   checkRateLimit,
   extractClientIdentifier,
 } from "@/lib/security/rateLimiter";
-import { isNetworkTransportError } from "@/lib/supabase/config";
+import {
+  createBoundedFetch,
+  getSupabasePublicConfig,
+  isNetworkTransportError,
+} from "@/lib/supabase/config";
 import {
   createServerSupabaseClient,
   getServerAuthenticatedUser,
@@ -133,7 +139,46 @@ export async function POST(request: Request) {
     }
   }
 
-  const { user, isEmailVerified } = await getServerAuthenticatedUser();
+  const rawAuthHeader = request.headers.get("authorization") || "";
+  let user: User | null = null;
+  let isEmailVerified = false;
+  let supabase: SupabaseClient | null = null;
+
+  if (rawAuthHeader.toLowerCase().startsWith("bearer ")) {
+    const pubCfg = getSupabasePublicConfig();
+    if (pubCfg) {
+      const bearerClient = createClient(pubCfg.url, pubCfg.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: {
+          headers: { Authorization: rawAuthHeader },
+          fetch: createBoundedFetch(3500),
+        },
+      });
+      try {
+        const { data: bearerAuth, error: bearerErr } =
+          await bearerClient.auth.getUser();
+        if (bearerErr && isNetworkTransportError(bearerErr)) {
+          return NextResponse.json({ ok: false, transportFallback: true });
+        }
+        if (!bearerErr && bearerAuth?.user) {
+          user = bearerAuth.user;
+          isEmailVerified = Boolean(bearerAuth.user.email_confirmed_at);
+          supabase = bearerClient;
+        }
+      } catch (err) {
+        if (isNetworkTransportError(err)) {
+          return NextResponse.json({ ok: false, transportFallback: true });
+        }
+      }
+    }
+  }
+
+  if (!user) {
+    const cookieAuth = await getServerAuthenticatedUser();
+    user = cookieAuth.user;
+    isEmailVerified = cookieAuth.isEmailVerified;
+  }
+
   if (!user) {
     return NextResponse.json(
       { ok: false, error: "Authentication required." },
@@ -150,7 +195,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = await createServerSupabaseClient({ timeoutMs: 3500 });
+  if (!supabase) {
+    supabase = await createServerSupabaseClient({ timeoutMs: 3500 });
+  }
   if (!supabase) {
     return NextResponse.json(
       { ok: false, error: "Supabase environment is not configured." },
@@ -307,6 +354,8 @@ export async function POST(request: Request) {
         }
       }
 
+      const createdNewConv = !body.conversationId && Boolean(conversationId);
+
       // Live current-knowledge retrieval so the AI provides up-to-date answers to any question
       const isTimeSensitive = detectTimeSensitiveIntent(rawUserText || userPrompt);
       const liveGrounding = rawUserText
@@ -340,21 +389,34 @@ export async function POST(request: Request) {
           ]
         : userPrompt;
 
-      const completion = await runServerProviderCompletion({
-        messages: [
-          {
-            role: "system",
-            content: teacherSystemPrompt,
-          },
-          ...historyMessages,
-          { role: "user", content: userTurnContent },
-        ],
-        maxTokens: Math.min(Math.max(maxTokens, 1500), 2048),
-        preferredProvider,
-        defaultModel,
-        fallbackModel,
-        preferLiveWebSearch: isTimeSensitive && !imageDataUrl,
-      });
+      let completion;
+      try {
+        completion = await runServerProviderCompletion({
+          messages: [
+            {
+              role: "system",
+              content: teacherSystemPrompt,
+            },
+            ...historyMessages,
+            { role: "user", content: userTurnContent },
+          ],
+          maxTokens: Math.min(Math.max(maxTokens, 1500), 2048),
+          preferredProvider,
+          defaultModel,
+          fallbackModel,
+          preferLiveWebSearch: isTimeSensitive && !imageDataUrl,
+        });
+      } catch (providerErr) {
+        if (createdNewConv && conversationId) {
+          await supabase
+            .from("ai_tutor_conversations")
+            .delete()
+            .eq("id", conversationId)
+            .eq("user_id", user.id)
+            .eq("message_count", 0);
+        }
+        throw providerErr;
+      }
 
       if (conversationId) {
         await supabase.from("ai_tutor_messages").insert([
@@ -486,7 +548,7 @@ export async function POST(request: Request) {
         jsonMode: true,
       });
 
-      const parsed = JSON.parse(completion.content);
+      const parsed = extractAiJsonPayload(completion.content);
       if (reservedLogId) {
         await supabase.rpc("finalize_student_ai_quota_slot", {
           p_log_id: reservedLogId,

@@ -1196,7 +1196,11 @@ export function AdminPortalClient() {
                   <span className="text-slate-400">Primary AI Engine</span>
                   <p className="mt-1 font-bold text-white">
                     {aiSettings.aiEnabled
-                      ? `${aiSettings.defaultProvider.toUpperCase()} (${aiSettings.defaultModel})`
+                      ? `${aiSettings.defaultProvider.toUpperCase()} (${
+                          aiSettings.defaultProvider === "openrouter"
+                            ? aiSettings.fallbackModel
+                            : aiSettings.defaultModel
+                        })`
                       : "Paused by Admin"}
                   </p>
                 </div>

@@ -36,11 +36,108 @@ export function getConfiguredAiProvidersStatus(): {
   };
 }
 
+export const FREE_VISION_MODELS = [
+  "openrouter/free",
+  "dots-studio/dots-3-note-preview:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3.5-super-vl:free",
+  "thinkingmachines/inkling-small:free",
+] as const;
+
+export const FREE_TEXT_MODELS = [
+  "openrouter/free",
+  "cohere/north-mini-code:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3.5-lightning:free",
+  "thinkingmachines/inkling-small:free",
+] as const;
+
+export function extractAiJsonPayload(raw: string): Record<string, unknown> {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1].trim() : trimmed;
+  try {
+    return JSON.parse(candidate) as Record<string, unknown>;
+  } catch {
+    const firstBrace = candidate.indexOf("{");
+    const lastBrace = candidate.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      return JSON.parse(
+        candidate.slice(firstBrace, lastBrace + 1)
+      ) as Record<string, unknown>;
+    }
+    throw new Error("INVALID_AI_JSON_OUTPUT");
+  }
+}
+
+export function normalizeMessagesForModel(
+  messages: AiChatMessage[],
+  model: string,
+  isFreeOrGemma: boolean
+): AiChatMessage[] {
+  const cleaned: AiChatMessage[] = messages.map((m) => {
+    if (!Array.isArray(m.content)) return m;
+    return {
+      ...m,
+      content: m.content.map((part) => {
+        if (part.type === "image_url" && model !== "gpt-4o-mini") {
+          return {
+            type: "image_url" as const,
+            image_url: { url: part.image_url.url },
+          };
+        }
+        return part;
+      }),
+    };
+  });
+
+  if (
+    isFreeOrGemma &&
+    cleaned.length >= 2 &&
+    cleaned[0].role === "system" &&
+    typeof cleaned[0].content === "string"
+  ) {
+    const sysText = cleaned[0].content;
+    const rest = cleaned.slice(1);
+    const firstUserIdx = rest.findIndex((m) => m.role === "user");
+    if (firstUserIdx !== -1) {
+      const target = rest[firstUserIdx];
+      const mergedUser: AiChatMessage = Array.isArray(target.content)
+        ? {
+            role: "user",
+            content: target.content.map((part, idx) =>
+              idx === 0 && part.type === "text"
+                ? {
+                    type: "text" as const,
+                    text: `[System Instructions]\n${sysText}\n\n[Student Question]\n${part.text}`,
+                  }
+                : part
+            ),
+          }
+        : {
+            role: "user",
+            content: `[System Instructions]\n${sysText}\n\n[Student Question]\n${target.content}`,
+          };
+      return [
+        ...rest.slice(0, firstUserIdx),
+        mergedUser,
+        ...rest.slice(firstUserIdx + 1),
+      ];
+    }
+  }
+
+  return cleaned;
+}
+
 interface ProviderCandidate {
   provider: string;
   url: string;
   apiKey: string;
   model: string;
+  maxTokensOverride?: number;
+  isFreeModel?: boolean;
   extraHeaders?: Record<string, string>;
   extraBody?: Record<string, unknown>;
 }
@@ -48,7 +145,8 @@ interface ProviderCandidate {
 /**
  * Server-only AI provider execution chain.
  * API keys are read strictly from process.env on the server and NEVER serialized to client bundles.
- * Supports text, multimodal vision (`image_url` data URLs on gpt-4o-mini), and optional OpenRouter live web search.
+ * Supports text, multimodal vision (`image_url` data URLs), OpenRouter `$0.00` `:free` model cascades,
+ * and optional OpenRouter live web search.
  */
 export async function runServerProviderCompletion(params: {
   messages: AiChatMessage[];
@@ -81,20 +179,34 @@ export async function runServerProviderCompletion(params: {
     process.env.AI_FALLBACK_MODEL ||
     "openai/gpt-4o-mini";
 
+  const hasImage = params.messages.some(
+    (m) =>
+      Array.isArray(m.content) &&
+      m.content.some((part) => part.type === "image_url")
+  );
+
+  const configuredIsFree =
+    fallbackModel.endsWith(":free") || fallbackModel === "openrouter/free";
+
+  const orHeaders = {
+    "HTTP-Referer": "https://students-ecosystem.vercel.app",
+    "X-Title": "Students Ecosystem",
+  };
+
   const candidates: ProviderCandidate[] = [];
 
   const pushOpenRouterLiveWeb = () => {
-    if (!params.preferLiveWebSearch || params.jsonMode) return;
+    if (!params.preferLiveWebSearch || params.jsonMode || configuredIsFree) {
+      return;
+    }
     if (openRouterPrimary) {
       candidates.push({
         provider: "openrouter-live-web",
         url: "https://openrouter.ai/api/v1/chat/completions",
         apiKey: openRouterPrimary,
         model: fallbackModel,
-        extraHeaders: {
-          "HTTP-Referer": "https://students-ecosystem.vercel.app",
-          "X-Title": "Students Ecosystem",
-        },
+        maxTokensOverride: Math.min(boundedTokens, 900),
+        extraHeaders: orHeaders,
         extraBody: {
           plugins: [{ id: "web", max_results: 4 }],
         },
@@ -113,17 +225,16 @@ export async function runServerProviderCompletion(params: {
     }
   };
 
-  const pushOpenRouter = () => {
+  const pushOpenRouterPaid = () => {
+    if (configuredIsFree) return;
     if (openRouterPrimary) {
       candidates.push({
         provider: "openrouter",
         url: "https://openrouter.ai/api/v1/chat/completions",
         apiKey: openRouterPrimary,
         model: fallbackModel,
-        extraHeaders: {
-          "HTTP-Referer": "https://students-ecosystem.vercel.app",
-          "X-Title": "Students Ecosystem",
-        },
+        maxTokensOverride: Math.min(boundedTokens, 900),
+        extraHeaders: orHeaders,
       });
     }
     if (openRouterFallback && openRouterFallback !== openRouterPrimary) {
@@ -132,10 +243,46 @@ export async function runServerProviderCompletion(params: {
         url: "https://openrouter.ai/api/v1/chat/completions",
         apiKey: openRouterFallback,
         model: fallbackModel,
-        extraHeaders: {
-          "HTTP-Referer": "https://students-ecosystem.vercel.app",
-          "X-Title": "Students Ecosystem",
-        },
+        maxTokensOverride: Math.min(boundedTokens, 900),
+        extraHeaders: orHeaders,
+      });
+    }
+  };
+
+  const pushOpenRouterFreeCascade = () => {
+    const orKeys = [openRouterPrimary, openRouterFallback].filter(
+      (k, idx, arr) => Boolean(k) && arr.indexOf(k) === idx
+    );
+    if (orKeys.length === 0) return;
+
+    const basePool: readonly string[] = hasImage
+      ? FREE_VISION_MODELS
+      : FREE_TEXT_MODELS;
+    const orderedModels = configuredIsFree
+      ? [fallbackModel, ...basePool.filter((m) => m !== fallbackModel)]
+      : [...basePool];
+
+    for (let i = 0; i < orderedModels.length; i += 1) {
+      const modelId = orderedModels[i];
+      const apiKey = orKeys[i % orKeys.length];
+      candidates.push({
+        provider: "openrouter-free",
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        apiKey,
+        model: modelId,
+        isFreeModel: true,
+        extraHeaders: orHeaders,
+      });
+    }
+
+    if (orKeys.length > 1) {
+      candidates.push({
+        provider: "openrouter-free-backup",
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        apiKey: orKeys[1],
+        model: "openrouter/free",
+        isFreeModel: true,
+        extraHeaders: orHeaders,
       });
     }
   };
@@ -143,11 +290,18 @@ export async function runServerProviderCompletion(params: {
   pushOpenRouterLiveWeb();
 
   if (preferredProvider === "openrouter") {
-    pushOpenRouter();
-    pushOpenAi();
+    if (configuredIsFree) {
+      pushOpenRouterFreeCascade();
+      pushOpenAi();
+    } else {
+      pushOpenRouterPaid();
+      pushOpenAi();
+      pushOpenRouterFreeCascade();
+    }
   } else {
     pushOpenAi();
-    pushOpenRouter();
+    pushOpenRouterPaid();
+    pushOpenRouterFreeCascade();
   }
 
   if (candidates.length === 0) {
@@ -161,15 +315,29 @@ export async function runServerProviderCompletion(params: {
   for (const cand of candidates) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 28000);
+      const timeout = setTimeout(
+        () => controller.abort(),
+        cand.isFreeModel ? 24000 : 18000
+      );
+      const isGemmaOrFree =
+        Boolean(cand.isFreeModel) ||
+        cand.model.startsWith("google/gemma") ||
+        cand.model === "openrouter/free";
+
+      const preparedMessages = normalizeMessagesForModel(
+        params.messages,
+        cand.model,
+        isGemmaOrFree
+      );
+
       const bodyPayload: Record<string, unknown> = {
         model: cand.model,
-        messages: params.messages,
-        max_tokens: boundedTokens,
+        messages: preparedMessages,
+        max_tokens: cand.maxTokensOverride || boundedTokens,
         temperature,
         ...(cand.extraBody || {}),
       };
-      if (params.jsonMode) {
+      if (params.jsonMode && !cand.isFreeModel) {
         bodyPayload.response_format = { type: "json_object" };
       }
 

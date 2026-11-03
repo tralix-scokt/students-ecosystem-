@@ -264,7 +264,7 @@ TEACHING STYLE:
 - ANSWER BASIC QUESTIONS EFFORTLESSLY: If the student asks a basic question, greeting, quick calculation, simple definition, grammar check, or short follow-up ("What is 15% of 200?", "What is a noun?", "Why does ice float?", "I didn't understand step 2"), answer directly, simply, and warmly in plain everyday English right away—do NOT overwhelm a basic question with a huge essay!
 - EXPLAIN FULL TOPICS LIKE A GREAT TEACHER AT THE WHITEBOARD:
   a) Start with **Everyday Intuition / Real-World Analogy** in plain words before technical jargon.
-  b) Break the lesson into clear steps using short headings (###), **bold key terms**, and plain-text formulas (define every symbol and SI unit).
+  b) Break the lesson into clear steps using short headings (###), **bold key terms**, and plain-text/Unicode formulas (e.g., V = I × R, 3x + 5 = 20, a² + b² = c² — avoid raw LaTeX backslashes like \\( or \\[; define every symbol and SI unit).
   c) Use a \`> Teacher Tip:\` blockquote to highlight a memory trick or the #1 mistake students make in exams.
   d) End the explanation with one friendly **Quick Check** question so the student can test their understanding.
 
@@ -302,6 +302,108 @@ interface ProviderResult {
   webCitations?: Array<{ title: string; url: string }>;
 }
 
+const FREE_VISION_MODELS = [
+  "openrouter/free",
+  "dots-studio/dots-3-note-preview:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3.5-super-vl:free",
+  "thinkingmachines/inkling-small:free",
+];
+
+const FREE_TEXT_MODELS = [
+  "openrouter/free",
+  "cohere/north-mini-code:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3.5-lightning:free",
+  "thinkingmachines/inkling-small:free",
+];
+
+function extractJsonPayload(raw: string): Record<string, unknown> {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1].trim() : trimmed;
+  try {
+    return JSON.parse(candidate) as Record<string, unknown>;
+  } catch {
+    const firstBrace = candidate.indexOf("{");
+    const lastBrace = candidate.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      return JSON.parse(
+        candidate.slice(firstBrace, lastBrace + 1)
+      ) as Record<string, unknown>;
+    }
+    throw new Error("INVALID_AI_JSON_OUTPUT");
+  }
+}
+
+function normalizeMessagesForModel(
+  messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string | MessageContentPart[];
+  }>,
+  model: string,
+  isFreeOrGemma: boolean
+): Array<{
+  role: "system" | "user" | "assistant";
+  content: string | MessageContentPart[];
+}> {
+  const cleaned = messages.map((m) => {
+    if (!Array.isArray(m.content)) return m;
+    return {
+      ...m,
+      content: m.content.map((part) => {
+        if (part.type === "image_url" && model !== "gpt-4o-mini") {
+          return {
+            type: "image_url" as const,
+            image_url: { url: part.image_url.url },
+          };
+        }
+        return part;
+      }),
+    };
+  });
+
+  // Merge leading system prompt into first user turn for Gemma / free-router compatibility
+  if (
+    isFreeOrGemma &&
+    cleaned.length >= 2 &&
+    cleaned[0].role === "system" &&
+    typeof cleaned[0].content === "string"
+  ) {
+    const sysText = cleaned[0].content;
+    const rest = cleaned.slice(1);
+    const firstUserIdx = rest.findIndex((m) => m.role === "user");
+    if (firstUserIdx !== -1) {
+      const target = rest[firstUserIdx];
+      const mergedUser = Array.isArray(target.content)
+        ? {
+            role: "user" as const,
+            content: target.content.map((part, idx) =>
+              idx === 0 && part.type === "text"
+                ? {
+                    type: "text" as const,
+                    text: `[System Instructions]\n${sysText}\n\n[Student Question]\n${part.text}`,
+                  }
+                : part
+            ),
+          }
+        : {
+            role: "user" as const,
+            content: `[System Instructions]\n${sysText}\n\n[Student Question]\n${target.content}`,
+          };
+      return [
+        ...rest.slice(0, firstUserIdx),
+        mergedUser,
+        ...rest.slice(firstUserIdx + 1),
+      ];
+    }
+  }
+
+  return cleaned;
+}
+
 async function callProviderChain(params: {
   messages: Array<{
     role: "system" | "user" | "assistant";
@@ -320,8 +422,14 @@ async function callProviderChain(params: {
   const openRouterFallback =
     Deno.env.get("OPENROUTER_API_KEY_FALLBACK")?.trim() || "";
   const boundedTokens = Math.min(
-    Math.max(Number(params.maxTokens || 1500), 128),
+    Math.max(Number(params.maxTokens || 1400), 128),
     2048
+  );
+
+  const hasImage = params.messages.some(
+    (m) =>
+      Array.isArray(m.content) &&
+      m.content.some((part) => part.type === "image_url")
   );
 
   type Candidate = {
@@ -329,26 +437,42 @@ async function callProviderChain(params: {
     url: string;
     apiKey: string;
     model: string;
+    maxTokensOverride?: number;
+    isFreeModel?: boolean;
     extraHeaders?: Record<string, string>;
     extraBody?: Record<string, unknown>;
   };
 
+  const orHeaders = {
+    "HTTP-Referer": "https://students-ecosystem.vercel.app",
+    "X-Title": "E-Learning Ecosystem",
+  };
+
   const candidates: Candidate[] = [];
-  if (params.preferLiveWebSearch && !params.jsonMode && openRouterPrimary) {
+  const configuredFallback = params.fallbackModel || "openai/gpt-4o-mini";
+  const configuredIsFree =
+    configuredFallback.endsWith(":free") ||
+    configuredFallback === "openrouter/free";
+
+  if (
+    params.preferLiveWebSearch &&
+    !params.jsonMode &&
+    openRouterPrimary &&
+    !configuredIsFree
+  ) {
     candidates.push({
       provider: "openrouter-live-web",
       url: "https://openrouter.ai/api/v1/chat/completions",
       apiKey: openRouterPrimary,
-      model: params.fallbackModel || "openai/gpt-4o-mini",
-      extraHeaders: {
-        "HTTP-Referer": "https://students-ecosystem.vercel.app",
-        "X-Title": "Students Ecosystem",
-      },
+      model: configuredFallback,
+      maxTokensOverride: Math.min(boundedTokens, 900),
+      extraHeaders: orHeaders,
       extraBody: {
         plugins: [{ id: "web", max_results: 4 }],
       },
     });
   }
+
   const pushOpenAi = () => {
     if (openAiKey) {
       candidates.push({
@@ -361,17 +485,17 @@ async function callProviderChain(params: {
       });
     }
   };
-  const pushOpenRouter = () => {
+
+  const pushOpenRouterPaid = () => {
+    if (configuredIsFree) return;
     if (openRouterPrimary) {
       candidates.push({
         provider: "openrouter",
         url: "https://openrouter.ai/api/v1/chat/completions",
         apiKey: openRouterPrimary,
-        model: params.fallbackModel || "openai/gpt-4o-mini",
-        extraHeaders: {
-          "HTTP-Referer": "https://elearning.tralix.ai",
-          "X-Title": "E-LEARNING ECOSYSTEM",
-        },
+        model: configuredFallback,
+        maxTokensOverride: Math.min(boundedTokens, 900),
+        extraHeaders: orHeaders,
       });
     }
     if (openRouterFallback && openRouterFallback !== openRouterPrimary) {
@@ -379,21 +503,66 @@ async function callProviderChain(params: {
         provider: "openrouter-fallback",
         url: "https://openrouter.ai/api/v1/chat/completions",
         apiKey: openRouterFallback,
-        model: params.fallbackModel || "openai/gpt-4o-mini",
-        extraHeaders: {
-          "HTTP-Referer": "https://elearning.tralix.ai",
-          "X-Title": "E-LEARNING ECOSYSTEM",
-        },
+        model: configuredFallback,
+        maxTokensOverride: Math.min(boundedTokens, 900),
+        extraHeaders: orHeaders,
+      });
+    }
+  };
+
+  const pushOpenRouterFreeCascade = () => {
+    const orKeys = [openRouterPrimary, openRouterFallback].filter(
+      (k, idx, arr) => Boolean(k) && arr.indexOf(k) === idx
+    );
+    if (orKeys.length === 0) return;
+
+    const freeModels = hasImage ? FREE_VISION_MODELS : FREE_TEXT_MODELS;
+    const orderedModels = configuredIsFree
+      ? [
+          configuredFallback,
+          ...freeModels.filter((m) => m !== configuredFallback),
+        ]
+      : freeModels;
+
+    for (let i = 0; i < orderedModels.length; i++) {
+      const modelId = orderedModels[i];
+      const primaryKey = orKeys[i % orKeys.length];
+      candidates.push({
+        provider: "openrouter-free",
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        apiKey: primaryKey,
+        model: modelId,
+        isFreeModel: true,
+        extraHeaders: orHeaders,
+      });
+    }
+
+    // Extra backup pass with alternate OpenRouter key on openrouter/free if 2 keys exist
+    if (orKeys.length > 1) {
+      candidates.push({
+        provider: "openrouter-free-backup",
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        apiKey: orKeys[1],
+        model: "openrouter/free",
+        isFreeModel: true,
+        extraHeaders: orHeaders,
       });
     }
   };
 
   if (params.preferredProvider === "openrouter") {
-    pushOpenRouter();
-    pushOpenAi();
+    if (configuredIsFree) {
+      pushOpenRouterFreeCascade();
+      pushOpenAi();
+    } else {
+      pushOpenRouterPaid();
+      pushOpenAi();
+      pushOpenRouterFreeCascade();
+    }
   } else {
     pushOpenAi();
-    pushOpenRouter();
+    pushOpenRouterPaid();
+    pushOpenRouterFreeCascade();
   }
 
   if (candidates.length === 0) {
@@ -404,15 +573,29 @@ async function callProviderChain(params: {
   for (const cand of candidates) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 28000);
+      const timeout = setTimeout(
+        () => controller.abort(),
+        cand.isFreeModel ? 24000 : 18000
+      );
+      const isGemmaOrFree =
+        Boolean(cand.isFreeModel) ||
+        cand.model.startsWith("google/gemma") ||
+        cand.model === "openrouter/free";
+
+      const preparedMessages = normalizeMessagesForModel(
+        params.messages,
+        cand.model,
+        isGemmaOrFree
+      );
+
       const bodyPayload: Record<string, unknown> = {
         model: cand.model,
-        messages: params.messages,
-        max_tokens: boundedTokens,
+        messages: preparedMessages,
+        max_tokens: cand.maxTokensOverride || boundedTokens,
         temperature: params.temperature,
         ...(cand.extraBody || {}),
       };
-      if (params.jsonMode) {
+      if (params.jsonMode && !cand.isFreeModel) {
         bodyPayload.response_format = { type: "json_object" };
       }
 
@@ -429,7 +612,14 @@ async function callProviderChain(params: {
       clearTimeout(timeout);
 
       if (!resp.ok) {
-        lastError = `${cand.provider}_HTTP_${resp.status}`;
+        let detail = "";
+        try {
+          const errJson = await resp.json();
+          detail = String(errJson?.error?.message || "").slice(0, 60);
+        } catch {
+          // ignore
+        }
+        lastError = `${cand.provider}(${cand.model})_HTTP_${resp.status}${detail ? `:${detail}` : ""}`;
         continue;
       }
 
@@ -437,7 +627,7 @@ async function callProviderChain(params: {
       const messageObj = data?.choices?.[0]?.message;
       const content = String(messageObj?.content ?? "").trim();
       if (!content) {
-        lastError = `${cand.provider}_EMPTY_RESPONSE`;
+        lastError = `${cand.provider}(${cand.model})_EMPTY_RESPONSE`;
         continue;
       }
 
@@ -468,7 +658,9 @@ async function callProviderChain(params: {
       };
     } catch (err) {
       lastError =
-        err instanceof Error ? `${cand.provider}:${err.message}` : String(err);
+        err instanceof Error
+          ? `${cand.provider}(${cand.model}):${err.message}`
+          : String(err);
     }
   }
 
@@ -790,6 +982,7 @@ Deno.serve(async (req: Request) => {
         conversationId = createdConv.id;
       }
 
+      const createdNewConv = !body?.conversationId && Boolean(conversationId);
       const liveGrounding = rawUserText
         ? await fetchLiveCurrentContextEdge(rawUserText)
         : { contextBlock: "", sources: [], isTimeSensitive: false };
@@ -814,19 +1007,32 @@ Deno.serve(async (req: Request) => {
           ]
         : userPrompt;
 
-      const result = await callProviderChain({
-        messages: [
-          { role: "system", content: systemMessage },
-          ...historyMessages,
-          { role: "user", content: userTurnContent },
-        ],
-        maxTokens: Math.min(Math.max(maxTokens, 1500), 2048),
-        temperature: 0.4,
-        preferredProvider,
-        defaultModel,
-        fallbackModel,
-        preferLiveWebSearch: liveGrounding.isTimeSensitive && !imageDataUrl,
-      });
+      let result: ProviderResult;
+      try {
+        result = await callProviderChain({
+          messages: [
+            { role: "system", content: systemMessage },
+            ...historyMessages,
+            { role: "user", content: userTurnContent },
+          ],
+          maxTokens: Math.min(Math.max(maxTokens, 1500), 2048),
+          temperature: 0.4,
+          preferredProvider,
+          defaultModel,
+          fallbackModel,
+          preferLiveWebSearch: liveGrounding.isTimeSensitive && !imageDataUrl,
+        });
+      } catch (providerErr) {
+        if (createdNewConv) {
+          await supabase
+            .from("ai_tutor_conversations")
+            .delete()
+            .eq("id", conversationId)
+            .eq("user_id", user.id)
+            .eq("message_count", 0);
+        }
+        throw providerErr;
+      }
 
       await supabase.from("ai_tutor_messages").insert([
         {
@@ -987,7 +1193,7 @@ IMPORTANT RULES:
         jsonMode: true,
       });
 
-      const parsed = JSON.parse(result.content);
+      const parsed = extractJsonPayload(result.content);
       const questions = Array.isArray(parsed?.questions)
         ? parsed.questions
         : [];

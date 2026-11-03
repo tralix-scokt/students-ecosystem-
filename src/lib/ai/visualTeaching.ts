@@ -498,7 +498,9 @@ export function parseTutorMessageContent(
     }
 
     if (parsedSpec) {
-      const before = working.slice(lastIndex, startIdx).trim();
+      const before = normalizeTutorMathNotation(
+        working.slice(lastIndex, startIdx).trim()
+      );
       if (before) {
         blocks.push({ kind: "markdown", text: before });
       }
@@ -507,7 +509,9 @@ export function parseTutorMessageContent(
       lastIndex = startIdx + fullFence.length;
     } else if (fullFence.toLowerCase().startsWith("```tutor-diagram")) {
       // Hide malformed internal diagram fence so raw broken JSON never leaks into UI
-      const before = working.slice(lastIndex, startIdx).trim();
+      const before = normalizeTutorMathNotation(
+        working.slice(lastIndex, startIdx).trim()
+      );
       if (before) {
         blocks.push({ kind: "markdown", text: before });
       }
@@ -517,7 +521,7 @@ export function parseTutorMessageContent(
     match = DIAGRAM_FENCE_REGEX.exec(working);
   }
 
-  const remainder = working.slice(lastIndex).trim();
+  const remainder = normalizeTutorMathNotation(working.slice(lastIndex).trim());
   if (remainder) {
     blocks.push({ kind: "markdown", text: remainder });
   }
@@ -530,10 +534,65 @@ export function parseTutorMessageContent(
   }
 
   if (blocks.length === 0 && rawContent.trim()) {
-    blocks.push({ kind: "markdown", text: rawContent.trim() });
+    blocks.push({
+      kind: "markdown",
+      text: normalizeTutorMathNotation(rawContent.trim()),
+    });
   }
 
   return blocks;
+}
+
+export function normalizeTutorMathNotation(input: string): string {
+  const replaceMathExpr = (expr: string): string =>
+    expr
+      .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "($1)/($2)")
+      .replace(/\\sqrt\s*\{([^{}]+)\}/g, "√($1)")
+      .replace(/\\text\s*\{([^{}]+)\}/g, "$1")
+      .replace(/\\mathbf\s*\{([^{}]+)\}/g, "$1")
+      .replace(/\\times\b/g, "×")
+      .replace(/\\cdot\b/g, "·")
+      .replace(/\\div\b/g, "÷")
+      .replace(/\\pm\b/g, "±")
+      .replace(/\\approx\b/g, "≈")
+      .replace(/\\neq\b/g, "≠")
+      .replace(/\\leq?\b/g, "≤")
+      .replace(/\\geq?\b/g, "≥")
+      .replace(/\\rightarrow\b|\\to\b/g, "→")
+      .replace(/\\theta\b/g, "θ")
+      .replace(/\\pi\b/g, "π")
+      .replace(/\\alpha\b/g, "α")
+      .replace(/\\beta\b/g, "β")
+      .replace(/\\Delta\b/g, "Δ")
+      .replace(/\\Omega\b/g, "Ω")
+      .replace(/\\circ\b/g, "°")
+      .replace(/\^\{2\}|\^2\b/g, "²")
+      .replace(/\^\{3\}|\^3\b/g, "³")
+      .replace(/\\left|\\right/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  // Preserve fenced code blocks untouched while cleaning inline/block LaTeX math
+  return input
+    .split(/(```[\s\S]*?```)/g)
+    .map((segment) => {
+      if (segment.startsWith("```") && segment.endsWith("```")) {
+        return segment;
+      }
+      return segment
+        .replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, (_, inner) => {
+          const clean = replaceMathExpr(String(inner));
+          return `\n> **Formula / Step:** \`${clean}\`\n`;
+        })
+        .replace(/\$\$\s*([\s\S]*?)\s*\$\$/g, (_, inner) => {
+          const clean = replaceMathExpr(String(inner));
+          return `\n> **Formula / Step:** \`${clean}\`\n`;
+        })
+        .replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, (_, inner) =>
+          replaceMathExpr(String(inner))
+        );
+    })
+    .join("");
 }
 
 /**
@@ -698,7 +757,7 @@ TODAY'S REAL-WORLD DATE: ${todayIso}.
 - ANSWER BASIC QUESTIONS EFFORTLESSLY: If the student asks a basic question, greeting, quick calculation, simple definition, grammar check, or short follow-up ("What is 15% of 200?", "What is a noun?", "Why does ice float?", "I didn't understand step 2"), answer directly, simply, and warmly in plain everyday English right away—do NOT overwhelm a basic question with a huge essay!
 - EXPLAIN FULL TOPICS LIKE A GREAT TEACHER AT THE WHITEBOARD:
   a) Start with **Everyday Intuition / Real-World Analogy** in plain words before technical jargon.
-  b) Break the lesson into clear, bite-sized steps using short headings (###), **bold key terms**, and plain-text formulas (define every symbol and SI unit).
+  b) Break the lesson into clear, bite-sized steps using short headings (###), **bold key terms**, and plain-text/Unicode formulas (e.g., V = I × R, 3x + 5 = 20, a² + b² = c² — avoid raw LaTeX backslashes like \\( or \\[; define every symbol and SI unit).
   c) Use a \`> Teacher Tip:\` blockquote to highlight a memory trick or the #1 mistake students make in exams.
   d) End the explanation with one friendly **Quick Check** question so the student can test their understanding.
 
