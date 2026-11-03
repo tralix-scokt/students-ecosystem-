@@ -696,4 +696,56 @@ describe("Step 4 — Personalized Student Dashboard, Academic Pathways & Zero Fa
     expect(payload.unreadNotificationCount).toBe(0);
     expect(mockFrom).toHaveBeenCalledTimes(12);
   });
+
+  it("renders spacious futuristic Workspace Launchpad, live HUD telemetry, and uncluttered single-row subject rail for 14-subject JSS 3 profiles", async () => {
+    setViewport(390);
+    const fourteenSubjects = [
+      "Mathematics",
+      "English Language",
+      "Basic Technology",
+      "Computer Studies / ICT",
+      "Business Studies",
+      "French",
+      "Physical & Health Education",
+      "Christian Religious Studies",
+      "Agricultural Science",
+      "Social Studies",
+      "Civic Education",
+      "Basic Science",
+      "History",
+      "National Value",
+    ];
+
+    dashboardServiceMocks.fetchStudentDashboard.mockResolvedValueOnce({
+      status: "ok",
+      data: buildEmptyDashboardPayload({
+        secondary_category: "junior",
+        academic_level: "JSS 3",
+        institution_name: "",
+        selected_subjects: fourteenSubjects,
+      }),
+    });
+
+    render(<StudentDashboardClient />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Active Subjects (14)")).toBeInTheDocument();
+    });
+
+    const launchpad = screen.getByRole("region", {
+      name: /Quick workspace launchpad/i,
+    });
+    expect(
+      within(launchpad).getByText("AI Photo & Voice Tutor")
+    ).toBeInTheDocument();
+    expect(
+      within(launchpad).getByText("Past Questions & Mock")
+    ).toBeInTheDocument();
+    expect(
+      within(launchpad).getByText("Structured Courses")
+    ).toBeInTheDocument();
+    expect(
+      within(launchpad).getByText("Smart Notes & Cards")
+    ).toBeInTheDocument();
+  });
 });

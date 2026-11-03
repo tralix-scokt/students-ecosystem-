@@ -6,6 +6,7 @@ import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { DashboardErrorState } from "@/components/dashboard/DashboardErrorState";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { WelcomeHeroBanner } from "@/components/dashboard/WelcomeHeroBanner";
+import { FuturisticQuickLaunchStrip } from "@/components/dashboard/FuturisticQuickLaunchStrip";
 import { ContinueLearningSection } from "@/components/dashboard/ContinueLearningSection";
 import { AiTutorShortcutCard } from "@/components/dashboard/AiTutorShortcutCard";
 import { ExamPreparationCard } from "@/components/dashboard/ExamPreparationCard";
@@ -37,6 +38,11 @@ export function StudentDashboardClient() {
     );
   }
 
+  const todayFocusMinutes = data.todayStudySessions.reduce(
+    (sum, session) => sum + (session.duration_minutes ?? 0),
+    0
+  );
+
   return (
     <DashboardShell
       userProfile={data.userProfile}
@@ -46,26 +52,32 @@ export function StudentDashboardClient() {
       publishedCourses={data.publishedCourses}
       ongoingCourses={data.ongoingCourses}
     >
-      <div className="space-y-6 sm:space-y-8">
-        {/* 2. Personalized Welcome Section */}
+      <div className="space-y-7 pb-4 sm:space-y-9">
+        {/* 1. Futuristic Neural Command Deck (Compact Identity + Live Telemetry + Single-Row Subject Rail) */}
         <WelcomeHeroBanner
           userProfile={data.userProfile}
           academicProfile={data.academicProfile}
+          lessonsCompleted={data.progressMetrics.lessonsCompleted}
+          todayFocusMinutes={todayFocusMinutes}
+          averageAssessmentScore={data.progressMetrics.averageAssessmentScore}
         />
 
-        {/* 4A. Continue Learning & Recent Lessons */}
-        <ContinueLearningSection
-          ongoingCourses={data.ongoingCourses}
-          recentLessons={data.recentLessons}
-        />
+        {/* 2. Spatial 4-Tile Workspace Launchpad */}
+        <FuturisticQuickLaunchStrip />
 
-        {/* 4B & 4C. AI Tutor Shortcut + Pathway-Aware Exam Preparation */}
+        {/* 3. AI Co-Pilot + Pathway Exam Readiness Bento */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <AiTutorShortcutCard />
           <ExamPreparationCard academicProfile={data.academicProfile} />
         </div>
 
-        {/* 4D & 4E. Today's Study Plan + Upcoming Assignments */}
+        {/* 4. Active Learning Stream */}
+        <ContinueLearningSection
+          ongoingCourses={data.ongoingCourses}
+          recentLessons={data.recentLessons}
+        />
+
+        {/* 5. Daily Focus Schedule & Assignment Queue */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <TodaysStudyPlanCard
             todaySessions={data.todayStudySessions}
@@ -74,13 +86,13 @@ export function StudentDashboardClient() {
           <UpcomingAssignmentsCard assignments={data.upcomingAssignments} />
         </div>
 
-        {/* 4F. Academic & Learning Progress */}
+        {/* 6. Live Performance Telemetry */}
         <AcademicProgressSection
           metrics={data.progressMetrics}
           subjectLearningProgress={data.subjectLearningProgress}
         />
 
-        {/* 4G. Recommended Learning & Subjects */}
+        {/* 7. Curated Pathway Catalog */}
         <RecommendedLearningSection
           academicProfile={data.academicProfile}
           publishedCourses={data.publishedCourses}
