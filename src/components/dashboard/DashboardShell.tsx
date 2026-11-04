@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { buildClassmateInvitePayload } from "@/lib/marketing/viralShare";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { InstallAppButton } from "@/components/pwa/PwaInstallProvider";
 import { CommandPaletteModal } from "@/components/dashboard/CommandPaletteModal";
 import { QuickFocusPomodoro } from "@/components/dashboard/QuickFocusPomodoro";
 import { DASHBOARD_NAV_ITEMS } from "@/data/dashboardNavigation";
@@ -322,6 +323,8 @@ export function DashboardShell({
             </Link>
           )}
 
+          <InstallAppButton variant="sidebar" collapsed={sidebarCollapsed} />
+
           <button
             type="button"
             disabled={isSigningOut}
@@ -423,6 +426,10 @@ export function DashboardShell({
                   <span>Admin Portal</span>
                 </Link>
               )}
+              <InstallAppButton
+                variant="drawer"
+                onAfterClick={() => setMobileDrawerOpen(false)}
+              />
               <button
                 type="button"
                 disabled={isSigningOut}
@@ -525,8 +532,11 @@ export function DashboardShell({
               )}
             </div>
 
-            {/* Right Controls: Command Palette, Focus Pomodoro, Mobile Search Toggle, Notifications, Profile Menu */}
+            {/* Right Controls: Install App, Command Palette, Focus Pomodoro, Mobile Search Toggle, Notifications, Profile Menu */}
             <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* 1-Click Install App Trigger (hidden once installed) */}
+              <InstallAppButton variant="header" />
+
               {/* ⌘K Command Palette Trigger */}
               <button
                 type="button"

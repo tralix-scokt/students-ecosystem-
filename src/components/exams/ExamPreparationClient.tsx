@@ -18,6 +18,7 @@ import {
   Share2,
   ShieldAlert,
   Sparkles,
+  Square,
   Target,
   XCircle,
 } from "lucide-react";
@@ -280,19 +281,36 @@ export function ExamPreparationClient() {
     setReviewMode(false);
   };
 
+  const planAbortRef = React.useRef<AbortController | null>(null);
+  const explainAbortRef = React.useRef<AbortController | null>(null);
+
   const handleGenerateAiRevisionPlan = async () => {
     if (!resultSummary) return;
+    if (generatingPlan) {
+      planAbortRef.current?.abort();
+      planAbortRef.current = null;
+      setGeneratingPlan(false);
+      return;
+    }
+    planAbortRef.current?.abort();
+    const controller = new AbortController();
+    planAbortRef.current = controller;
     setGeneratingPlan(true);
-    const res = await requestExamAiHelper({
-      action: "revision_plan",
-      attemptId: String(resultSummary.attemptId || ""),
-      examName: `${selectedCatCode} ${selectedSubject}`,
-      subject: selectedSubject,
-      scorePercent: Number(resultSummary.scorePercent ?? 0),
-      weakTopics: Array.isArray(resultSummary.weakTopics)
-        ? (resultSummary.weakTopics as string[])
-        : [],
-    });
+    const res = await requestExamAiHelper(
+      {
+        action: "revision_plan",
+        attemptId: String(resultSummary.attemptId || ""),
+        examName: `${selectedCatCode} ${selectedSubject}`,
+        subject: selectedSubject,
+        scorePercent: Number(resultSummary.scorePercent ?? 0),
+        weakTopics: Array.isArray(resultSummary.weakTopics)
+          ? (resultSummary.weakTopics as string[])
+          : [],
+      },
+      { signal: controller.signal }
+    );
+    if (controller.signal.aborted || res.aborted) return;
+    planAbortRef.current = null;
     setGeneratingPlan(false);
     if (res.ok && res.content) {
       setAiRevisionPlan(res.content);
@@ -302,15 +320,29 @@ export function ExamPreparationClient() {
   const handleExplainIncorrectOrWritten = async (
     resp: SubmittedExamResponseItem
   ) => {
+    if (loadingAiExplainId === resp.id) {
+      explainAbortRef.current?.abort();
+      explainAbortRef.current = null;
+      setLoadingAiExplainId(null);
+      return;
+    }
+    explainAbortRef.current?.abort();
+    const controller = new AbortController();
+    explainAbortRef.current = controller;
     setLoadingAiExplainId(resp.id);
     const isWritten = resp.questionType === "written_response";
-    const res = await requestExamAiHelper({
-      action: isWritten ? "written_answer_feedback" : "explain_exam_answer",
-      responseId: resp.id,
-      questionPrompt: resp.prompt,
-      studentAnswer: resp.studentAnswer || "(No answer submitted)",
-      correctAnswer: resp.correctAnswerDisplay,
-    });
+    const res = await requestExamAiHelper(
+      {
+        action: isWritten ? "written_answer_feedback" : "explain_exam_answer",
+        responseId: resp.id,
+        questionPrompt: resp.prompt,
+        studentAnswer: resp.studentAnswer || "(No answer submitted)",
+        correctAnswer: resp.correctAnswerDisplay,
+      },
+      { signal: controller.signal }
+    );
+    if (controller.signal.aborted || res.aborted) return;
+    explainAbortRef.current = null;
     setLoadingAiExplainId(null);
     if (res.ok && res.content) {
       setAiExplanations((prev) => ({ ...prev, [resp.id]: res.content! }));
@@ -738,16 +770,24 @@ export function ExamPreparationClient() {
 
                     <button
                       type="button"
-                      disabled={generatingPlan}
                       onClick={handleGenerateAiRevisionPlan}
-                      className="inline-flex items-center gap-2 rounded-xl bg-aura-500 px-4 py-2.5 text-xs font-semibold text-white hover:bg-aura-400 disabled:opacity-50"
+                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition ${
+                        generatingPlan
+                          ? "border border-rose-400/50 bg-rose-500/20 text-rose-100 hover:bg-rose-500/30"
+                          : "bg-aura-500 text-white hover:bg-aura-400"
+                      }`}
                     >
                       {generatingPlan ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <>
+                          <Square className="h-3.5 w-3.5 fill-current text-rose-300" />
+                          <span>Stop AI Plan</span>
+                        </>
                       ) : (
-                        <Sparkles className="h-4 w-4" />
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          <span>Generate 5-Day AI Revision Plan</span>
+                        </>
                       )}
-                      Generate 5-Day AI Revision Plan
                     </button>
                   </div>
                 </div>
@@ -852,18 +892,28 @@ export function ExamPreparationClient() {
                         <div className="mt-2.5">
                           <button
                             type="button"
-                            disabled={loadingAiExplainId === resp.id}
                             onClick={() => handleExplainIncorrectOrWritten(resp)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-electric-400/30 bg-electric-500/10 px-3 py-1.5 font-medium text-electric-300 hover:bg-electric-500/20"
+                            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 font-medium transition ${
+                              loadingAiExplainId === resp.id
+                                ? "border-rose-400/50 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25"
+                                : "border-electric-400/30 bg-electric-500/10 text-electric-300 hover:bg-electric-500/20"
+                            }`}
                           >
                             {loadingAiExplainId === resp.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <>
+                                <Square className="h-3 w-3 fill-current text-rose-300" />
+                                <span>Stop AI Explanation</span>
+                              </>
                             ) : (
-                              <Bot className="h-3.5 w-3.5" />
+                              <>
+                                <Bot className="h-3.5 w-3.5" />
+                                <span>
+                                  {resp.questionType === "written_response"
+                                    ? "Request Advisory AI Feedback (Not Official Marking)"
+                                    : "Ask AI to Explain Step-by-Step"}
+                                </span>
+                              </>
                             )}
-                            {resp.questionType === "written_response"
-                              ? "Request Advisory AI Feedback (Not Official Marking)"
-                              : "Ask AI to Explain Step-by-Step"}
                           </button>
 
                           {aiExplanations[resp.id] && (

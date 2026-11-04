@@ -14,6 +14,7 @@ import {
   PenSquare,
   ShieldAlert,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   Sun,
   Trash2,
@@ -21,6 +22,7 @@ import {
 import { DashboardErrorState } from "@/components/dashboard/DashboardErrorState";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
+import { usePwaInstall } from "@/components/pwa/PwaInstallProvider";
 import { signOutLearner } from "@/lib/auth/authService";
 import { useStudentDashboardData } from "@/lib/dashboard/useStudentDashboardData";
 import { clearAllOfflineNotesCaches } from "@/lib/notes/notesService";
@@ -43,6 +45,7 @@ export function SettingsPageClient() {
   const [purgingData, setPurgingData] = useState(false);
   const [privacyFeedback, setPrivacyFeedback] = useState<string | null>(null);
   const [activeTheme, setActiveTheme] = useState<EcosystemTheme>("default");
+  const { isStandalone, canPromptNative, triggerInstall } = usePwaInstall();
 
   useEffect(() => {
     setActiveTheme(getStoredEcosystemTheme());
@@ -244,6 +247,50 @@ export function SettingsPageClient() {
             </Link>
           )}
         </div>
+
+        {/* Installable App (PWA) Section */}
+        <section
+          aria-labelledby="install-app-heading"
+          className="rounded-3xl border border-electric-400/25 hardcover-surface p-6 shadow-card-elevated sm:p-8"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2
+                id="install-app-heading"
+                className="flex items-center gap-2 font-display text-xl font-bold text-white sm:text-2xl"
+              >
+                <Smartphone
+                  className="h-5 w-5 text-electric-400"
+                  aria-hidden="true"
+                />
+                <span>Install E-Learning App</span>
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm text-slate-300">
+                Install E-Learning Ecosystem on Android, iPhone, iPad, Windows,
+                or Mac for instant full-screen launch, app shortcuts, and
+                offline shell resilience.
+              </p>
+            </div>
+
+            {isStandalone ? (
+              <span className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-400/35 bg-emerald-500/15 px-4 py-2.5 text-xs font-bold text-emerald-300">
+                <Check className="h-4 w-4" aria-hidden="true" />
+                <span>App Installed on This Device</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void triggerInstall()}
+                className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-electric-500 px-5 py-2.5 text-xs font-bold text-obsidian-950 shadow-cyan-glow transition hover:bg-electric-400"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                <span>
+                  {canPromptNative ? "Install App Now" : "Install App"}
+                </span>
+              </button>
+            )}
+          </div>
+        </section>
 
         {/* Appearance & Theme Selector (Default Blue Neon / Dark / Light) */}
         <section

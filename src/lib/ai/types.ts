@@ -121,6 +121,7 @@ export interface TutorMessageRecord {
   content: string;
   imageDataUrl?: string | null;
   liveSources?: TutorLiveSource[];
+  stoppedByUser?: boolean;
   learningMode: TutorLearningMode;
   provider: string | null;
   model: string | null;

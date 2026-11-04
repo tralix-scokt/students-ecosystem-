@@ -2,6 +2,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export interface AiGatewayResponse {
   ok: boolean;
+  aborted?: boolean;
   error?: string;
   code?: string;
   conversationId?: string;
@@ -19,8 +20,25 @@ export interface AiGatewayResponse {
   remainingDailyQuota?: number;
 }
 
+export interface InvokeAiGatewayOptions {
+  signal?: AbortSignal;
+}
+
+function isRequestAborted(err: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  if (err instanceof Error && err.name === "AbortError") return true;
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { name?: string }).name === "AbortError"
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /**
- * Invokes the server-side AI gateway.
+ * Invokes the server-side AI gateway with full AbortSignal cancellation support.
  * 1. Calls Next.js `/api/ai/gateway` with both session cookies and `Authorization: Bearer <jwt>`
  *    (so embedded iframes and Safari ITP work reliably) for server-side validation,
  *    rate-limiting, and provider completion.
@@ -29,8 +47,14 @@ export interface AiGatewayResponse {
  *    using the learner's authenticated JWT so zero AI API keys ever touch client code.
  */
 export async function invokeAiGateway(
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  options?: InvokeAiGatewayOptions
 ): Promise<AiGatewayResponse> {
+  const signal = options?.signal;
+  if (signal?.aborted) {
+    return { ok: false, aborted: true, error: "Response stopped." };
+  }
+
   const supabase = createBrowserSupabaseClient();
   let accessToken = "";
 
@@ -41,6 +65,10 @@ export async function invokeAiGateway(
     } catch {
       accessToken = "";
     }
+  }
+
+  if (signal?.aborted) {
+    return { ok: false, aborted: true, error: "Response stopped." };
   }
 
   let primaryErrorResult: AiGatewayResponse | null = null;
@@ -57,6 +85,7 @@ export async function invokeAiGateway(
       method: "POST",
       headers,
       body: JSON.stringify(payload),
+      ...(signal ? { signal } : {}),
     });
 
     const json = (await res.json()) as AiGatewayResponse & {
@@ -87,8 +116,15 @@ export async function invokeAiGateway(
     if (!json?.transportFallback) {
       primaryErrorResult = json;
     }
-  } catch {
+  } catch (err) {
+    if (isRequestAborted(err, signal)) {
+      return { ok: false, aborted: true, error: "Response stopped." };
+    }
     // Network or non-JSON gateway failure -> proceed to Supabase Edge Function failover
+  }
+
+  if (signal?.aborted) {
+    return { ok: false, aborted: true, error: "Response stopped." };
   }
 
   if (!supabase) {
@@ -101,9 +137,41 @@ export async function invokeAiGateway(
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke("ai-gateway", {
+    const invokePromise = supabase.functions.invoke("ai-gateway", {
       body: payload,
     });
+
+    const racedResult = signal
+      ? await new Promise<
+          | { kind: "aborted" }
+          | {
+              kind: "settled";
+              value: Awaited<typeof invokePromise>;
+            }
+        >((resolve, reject) => {
+          if (signal.aborted) {
+            resolve({ kind: "aborted" });
+            return;
+          }
+          const onAbort = () => resolve({ kind: "aborted" });
+          signal.addEventListener("abort", onAbort, { once: true });
+          invokePromise
+            .then((value) => {
+              signal.removeEventListener("abort", onAbort);
+              resolve({ kind: "settled", value });
+            })
+            .catch((err) => {
+              signal.removeEventListener("abort", onAbort);
+              reject(err);
+            });
+        })
+      : { kind: "settled" as const, value: await invokePromise };
+
+    if (racedResult.kind === "aborted") {
+      return { ok: false, aborted: true, error: "Response stopped." };
+    }
+
+    const { data, error } = racedResult.value;
 
     if (error) {
       let friendlyMsg = "";
@@ -136,7 +204,10 @@ export async function invokeAiGateway(
     if (data && typeof data === "object") {
       return data as AiGatewayResponse;
     }
-  } catch {
+  } catch (err) {
+    if (isRequestAborted(err, signal)) {
+      return { ok: false, aborted: true, error: "Response stopped." };
+    }
     // Fall through to structured error
   }
 

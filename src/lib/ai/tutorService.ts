@@ -157,17 +157,21 @@ export async function sendTutorPrompt(params: {
   conversationId?: string | null;
   courseSlug?: string | null;
   lessonSlug?: string | null;
+  signal?: AbortSignal;
 }): Promise<AiGatewayResponse> {
-  return invokeAiGateway({
-    action: "tutor_chat",
-    message: params.message,
-    imageDataUrl: params.imageDataUrl || undefined,
-    learningMode: params.learningMode,
-    explanationStyle: params.explanationStyle,
-    visualPreference: params.visualPreference || "auto",
-    subject: params.subject,
-    conversationId: params.conversationId || undefined,
-    courseSlug: params.courseSlug || undefined,
-    lessonSlug: params.lessonSlug || undefined,
-  });
+  return invokeAiGateway(
+    {
+      action: "tutor_chat",
+      message: params.message,
+      imageDataUrl: params.imageDataUrl || undefined,
+      learningMode: params.learningMode,
+      explanationStyle: params.explanationStyle,
+      visualPreference: params.visualPreference || "auto",
+      subject: params.subject,
+      conversationId: params.conversationId || undefined,
+      courseSlug: params.courseSlug || undefined,
+      lessonSlug: params.lessonSlug || undefined,
+    },
+    params.signal ? { signal: params.signal } : undefined
+  );
 }

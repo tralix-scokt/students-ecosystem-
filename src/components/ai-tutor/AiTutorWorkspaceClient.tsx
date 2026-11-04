@@ -24,6 +24,7 @@ import {
   RefreshCw,
   RotateCw,
   Send,
+  Square,
   Trash2,
   Volume2,
   VolumeX,
@@ -110,8 +111,20 @@ export function AiTutorWorkspaceClient() {
     text: string;
     image: PreparedPhotoAttachment | null;
   } | null>(null);
+  const [lastStoppedPayload, setLastStoppedPayload] = useState<{
+    text: string;
+    image: PreparedPhotoAttachment | null;
+  } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const activeRequestIdRef = useRef<number>(0);
+  const activePromptPayloadRef = useRef<{
+    text: string;
+    image: PreparedPhotoAttachment | null;
+  } | null>(null);
+  const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Voice Dictation & Read-Aloud state
   const [isListeningVoice, setIsListeningVoice] = useState(false);
@@ -144,16 +157,22 @@ export function AiTutorWorkspaceClient() {
   const querySubject = searchParams.get("subject") || "";
   const queryCourse = searchParams.get("course") || "";
   const queryLesson = searchParams.get("lesson") || "";
+  const profileSubjectsKey = (
+    data?.academicProfile?.selected_subjects || []
+  ).join("||");
 
   const availableSubjects = useMemo(() => {
-    const list = data?.academicProfile?.selected_subjects || [];
+    const list = profileSubjectsKey ? profileSubjectsKey.split("||") : [];
     const set = new Set<string>(list);
     if (querySubject) set.add(querySubject);
     return Array.from(set);
-  }, [data?.academicProfile?.selected_subjects, querySubject]);
+  }, [profileSubjectsKey, querySubject]);
 
   useEffect(() => {
     let active = true;
+    const firstProfileSubject = profileSubjectsKey
+      ? profileSubjectsKey.split("||")[0] || ""
+      : "";
     (async () => {
       const boot = await fetchTutorWorkspaceBootstrap();
       if (!active) return;
@@ -163,7 +182,7 @@ export function AiTutorWorkspaceClient() {
       setSelectedSubject(
         querySubject ||
           boot.preferences.preferredSubject ||
-          data?.academicProfile?.selected_subjects?.[0] ||
+          firstProfileSubject ||
           ""
       );
       setLoadingHistory(false);
@@ -171,7 +190,7 @@ export function AiTutorWorkspaceClient() {
     return () => {
       active = false;
     };
-  }, [data?.academicProfile?.selected_subjects, querySubject]);
+  }, [profileSubjectsKey, querySubject]);
 
   // Close + menu on outside click
   useEffect(() => {
@@ -188,9 +207,12 @@ export function AiTutorWorkspaceClient() {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [plusMenuOpen]);
 
-  // Stop speech synthesis on unmount
+  // Stop speech synthesis and any in-flight AI request on unmount
   useEffect(() => {
     return () => {
+      activeRequestIdRef.current += 1;
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
@@ -198,12 +220,70 @@ export function AiTutorWorkspaceClient() {
     };
   }, []);
 
+  const handleStopResponse = useCallback(() => {
+    activeRequestIdRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingMessageId(null);
+
+    const stoppedPayload = activePromptPayloadRef.current;
+    activePromptPayloadRef.current = null;
+
+    setSending(false);
+    setSendError(null);
+
+    if (stoppedPayload) {
+      setLastStoppedPayload(stoppedPayload);
+      const stoppedMsg: TutorMessageRecord = {
+        id: `msg-stopped-${Date.now()}`,
+        conversationId: activeConversationId || "session",
+        role: "assistant",
+        content: "Response stopped by you.",
+        stoppedByUser: true,
+        learningMode,
+        provider: null,
+        model: null,
+        isAiGenerated: false,
+        isVerifiedEducationalMaterial: false,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, stoppedMsg]);
+    }
+
+    setTimeout(() => {
+      promptTextareaRef.current?.focus();
+    }, 20);
+  }, [activeConversationId, learningMode]);
+
+  // Allow pressing Escape to immediately stop an active AI response
+  useEffect(() => {
+    if (!sending) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleStopResponse();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sending, handleStopResponse]);
+
   const handleSelectConversation = useCallback(
     async (conv: TutorConversationRecord) => {
+      activeRequestIdRef.current += 1;
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+      activePromptPayloadRef.current = null;
+      setSending(false);
       setActiveConversationId(conv.id);
       setLearningMode(conv.learningMode);
       if (conv.subject) setSelectedSubject(conv.subject);
       setSendError(null);
+      setLastStoppedPayload(null);
       setSuggestedFollowUps([]);
       setActiveFlashcards(null);
       setShowSidebar(false);
@@ -216,6 +296,11 @@ export function AiTutorWorkspaceClient() {
   );
 
   const handleNewConversation = useCallback(() => {
+    activeRequestIdRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    activePromptPayloadRef.current = null;
+    setSending(false);
     setActiveConversationId(null);
     setMessages([]);
     setAttachedImage(null);
@@ -223,6 +308,7 @@ export function AiTutorWorkspaceClient() {
     setActiveFlashcards(null);
     setSendError(null);
     setLastFailedPayload(null);
+    setLastStoppedPayload(null);
   }, []);
 
   const handleModeOrStyleChange = useCallback(
@@ -393,8 +479,19 @@ export function AiTutorWorkspaceClient() {
         return;
       }
 
+      abortControllerRef.current?.abort();
+      activeRequestIdRef.current += 1;
+      const requestId = activeRequestIdRef.current;
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      activePromptPayloadRef.current = {
+        text: trimmed,
+        image: activeImg || null,
+      };
+
       setSendError(null);
       setLastFailedPayload(null);
+      setLastStoppedPayload(null);
       setSuggestedFollowUps([]);
       setSending(true);
 
@@ -426,8 +523,19 @@ export function AiTutorWorkspaceClient() {
         conversationId: activeConversationId,
         courseSlug: queryCourse || null,
         lessonSlug: queryLesson || null,
+        signal: controller.signal,
       });
 
+      if (
+        activeRequestIdRef.current !== requestId ||
+        controller.signal.aborted ||
+        res.aborted
+      ) {
+        return;
+      }
+
+      abortControllerRef.current = null;
+      activePromptPayloadRef.current = null;
       setSending(false);
 
       if (!res.ok || !res.reply) {
@@ -831,7 +939,7 @@ export function AiTutorWorkspaceClient() {
                               : "w-full border border-white/10 bg-obsidian-900/85 text-slate-100"
                           }`}
                         >
-                          {msg.role === "assistant" && (
+                          {msg.role === "assistant" && !msg.stoppedByUser && (
                             <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-electric-300">
                                 <span>AI Tutor</span>
@@ -918,13 +1026,40 @@ export function AiTutorWorkspaceClient() {
                           )}
 
                           {msg.role === "assistant" ? (
-                            <>
-                              <TutorRichMessageRenderer
-                                content={msg.content}
-                                allowVisualFallback={
-                                  visualPreference !== "none"
-                                }
-                              />
+                            msg.stoppedByUser ? (
+                              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-300">
+                                <span className="inline-flex items-center gap-2 font-medium text-slate-300">
+                                  <Square
+                                    className="h-3 w-3 fill-current text-rose-300"
+                                    aria-hidden="true"
+                                  />
+                                  <span>{msg.content}</span>
+                                </span>
+                                {lastStoppedPayload && (
+                                  <button
+                                    type="button"
+                                    disabled={sending}
+                                    onClick={() =>
+                                      void submitPrompt(
+                                        lastStoppedPayload.text,
+                                        lastStoppedPayload.image
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-electric-400/35 bg-electric-500/10 px-2.5 py-1 text-[11px] font-semibold text-electric-300 transition hover:border-electric-400/60 hover:bg-electric-500/20 disabled:opacity-45"
+                                  >
+                                    <RefreshCw className="h-3 w-3" />
+                                    <span>Regenerate</span>
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                <TutorRichMessageRenderer
+                                  content={msg.content}
+                                  allowVisualFallback={
+                                    visualPreference !== "none"
+                                  }
+                                />
 
                               {/* Live Up-to-Date Grounding Sources */}
                               {msg.liveSources && msg.liveSources.length > 0 && (
@@ -1061,7 +1196,8 @@ export function AiTutorWorkspaceClient() {
                                   </div>
                                 </div>
                               )}
-                            </>
+                              </>
+                            )
                           ) : (
                             <div className="space-y-2.5">
                               {msg.imageDataUrl && (
@@ -1103,9 +1239,29 @@ export function AiTutorWorkspaceClient() {
                   )}
 
                   {sending && (
-                    <div className="flex items-center gap-2 rounded-xl border border-electric-400/20 bg-obsidian-900/70 px-4 py-3 text-xs text-electric-300">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Analyzing & preparing your up-to-date answer...</span>
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-electric-400/25 bg-obsidian-900/80 px-4 py-3 text-xs text-electric-300"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                        <span>
+                          Analyzing &amp; preparing your up-to-date answer...
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleStopResponse}
+                        aria-label="Stop generating response"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-400/45 bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/25"
+                      >
+                        <Square
+                          className="h-3 w-3 fill-current"
+                          aria-hidden="true"
+                        />
+                        <span>Stop</span>
+                      </button>
                     </div>
                   )}
 
@@ -1290,6 +1446,7 @@ export function AiTutorWorkspaceClient() {
                       Ask your academic question
                     </label>
                     <textarea
+                      ref={promptTextareaRef}
                       id="ai-tutor-prompt"
                       rows={1}
                       value={promptInput}
@@ -1304,11 +1461,12 @@ export function AiTutorWorkspaceClient() {
                         }
                       }}
                       placeholder={
-                        attachedImage
-                          ? "Add a question about this photo, or press Send..."
-                          : "Ask any question or tap + to add a photo..."
+                        sending
+                          ? "AI is responding — tap Stop (or Esc) anytime..."
+                          : attachedImage
+                            ? "Add a question about this photo, or press Send..."
+                            : "Ask any question or tap + to add a photo..."
                       }
-                      disabled={sending}
                       className="min-h-[46px] max-h-36 w-full resize-none rounded-2xl border border-white/15 bg-obsidian-950 py-3 pl-4 pr-11 text-sm text-white placeholder-slate-500 focus:border-electric-400 focus:outline-none"
                     />
                     <button
@@ -1335,19 +1493,31 @@ export function AiTutorWorkspaceClient() {
                     </button>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={!canSend}
-                    aria-label="Send"
-                    className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-electric-500 px-5 py-3 text-sm font-semibold text-obsidian-950 transition hover:bg-electric-400 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    {sending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
+                  {sending ? (
+                    <button
+                      type="button"
+                      onClick={handleStopResponse}
+                      aria-label="Stop AI response"
+                      title="Stop AI response (Esc)"
+                      className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl border border-rose-400/55 bg-rose-500/20 px-5 py-3 text-sm font-semibold text-rose-100 transition hover:border-rose-400 hover:bg-rose-500/30"
+                    >
+                      <Square
+                        className="h-3.5 w-3.5 fill-current text-rose-300"
+                        aria-hidden="true"
+                      />
+                      <span>Stop</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={!canSend}
+                      aria-label="Send"
+                      className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-2xl bg-electric-500 px-5 py-3 text-sm font-semibold text-obsidian-950 transition hover:bg-electric-400 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
                       <Send className="h-4 w-4" />
-                    )}
-                    <span>Send</span>
-                  </button>
+                      <span>Send</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </form>

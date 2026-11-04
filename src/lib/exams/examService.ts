@@ -412,19 +412,25 @@ export async function submitPracticeExamSession(params: {
   };
 }
 
-export async function requestExamAiHelper(params: {
-  action: "revision_plan" | "explain_exam_answer" | "written_answer_feedback";
-  attemptId?: string;
-  responseId?: string;
-  examName?: string;
-  subject?: string;
-  scorePercent?: number | null;
-  weakTopics?: string[];
-  questionPrompt?: string;
-  studentAnswer?: string;
-  correctAnswer?: string;
-}): Promise<{ ok: boolean; content?: string; error?: string }> {
-  const res = await invokeAiGateway(params);
+export async function requestExamAiHelper(
+  params: {
+    action: "revision_plan" | "explain_exam_answer" | "written_answer_feedback";
+    attemptId?: string;
+    responseId?: string;
+    examName?: string;
+    subject?: string;
+    scorePercent?: number | null;
+    weakTopics?: string[];
+    questionPrompt?: string;
+    studentAnswer?: string;
+    correctAnswer?: string;
+  },
+  options?: { signal?: AbortSignal }
+): Promise<{ ok: boolean; aborted?: boolean; content?: string; error?: string }> {
+  const res = await invokeAiGateway(params, options);
+  if (res.aborted) {
+    return { ok: false, aborted: true, error: "Response stopped." };
+  }
   if (!res.ok || !res.content) {
     return {
       ok: false,

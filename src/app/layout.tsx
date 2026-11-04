@@ -3,6 +3,7 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/space-grotesk";
 import "@fontsource-variable/cormorant-garamond";
 import "@fontsource-variable/cormorant-garamond/wght-italic.css";
+import { PwaInstallProvider } from "@/components/pwa/PwaInstallProvider";
 import "./globals.css";
 
 const SITE_URL = (
@@ -40,6 +41,12 @@ export const metadata: Metadata = {
   creator: "TRALIX AI",
   publisher: "E-Learning Ecosystem",
   category: "education",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "E-Learning",
+  },
   alternates: {
     canonical: "/",
   },
@@ -90,6 +97,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#02050e",
 };
 
@@ -155,7 +163,7 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        {children}
+        <PwaInstallProvider>{children}</PwaInstallProvider>
       </body>
     </html>
   );

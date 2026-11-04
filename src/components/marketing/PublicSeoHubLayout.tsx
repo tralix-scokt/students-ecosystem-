@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { InstallAppButton } from "@/components/pwa/PwaInstallProvider";
 
 interface FeatureCardItem {
   title: string;
@@ -95,6 +96,7 @@ export function PublicSeoHubLayout({
           </nav>
 
           <div className="flex items-center gap-2.5">
+            <InstallAppButton variant="public-nav" />
             <Link
               href="/login"
               className="rounded-xl border border-white/15 bg-obsidian-900 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:border-electric-400/50 hover:text-white"
