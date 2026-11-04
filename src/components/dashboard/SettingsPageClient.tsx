@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Check,
+  Crown,
   Download,
   Loader2,
   LogOut,
@@ -24,6 +25,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { usePwaInstall } from "@/components/pwa/PwaInstallProvider";
 import { signOutLearner } from "@/lib/auth/authService";
+import { formatNaira, useStudentSubscription } from "@/lib/billing/billingService";
 import { useStudentDashboardData } from "@/lib/dashboard/useStudentDashboardData";
 import { clearAllOfflineNotesCaches } from "@/lib/notes/notesService";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -46,6 +48,7 @@ export function SettingsPageClient() {
   const [privacyFeedback, setPrivacyFeedback] = useState<string | null>(null);
   const [activeTheme, setActiveTheme] = useState<EcosystemTheme>("default");
   const { isStandalone, canPromptNative, triggerInstall } = usePwaInstall();
+  const { billing } = useStudentSubscription();
 
   useEffect(() => {
     setActiveTheme(getStoredEcosystemTheme());
@@ -247,6 +250,48 @@ export function SettingsPageClient() {
             </Link>
           )}
         </div>
+
+        {/* TRALIX Pro Subscription & Paystack Passes Section */}
+        <section
+          aria-labelledby="subscription-billing-heading"
+          className="rounded-3xl border border-amber-400/25 hardcover-surface p-6 shadow-card-elevated sm:p-8"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2
+                id="subscription-billing-heading"
+                className="flex items-center gap-2 font-display text-xl font-bold text-white sm:text-2xl"
+              >
+                <Crown
+                  className="h-5 w-5 text-amber-300"
+                  aria-hidden="true"
+                />
+                <span>Plan &amp; Paystack Subscription</span>
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm text-slate-300">
+                Current Tier:{" "}
+                <strong className="text-white">{billing.planLabel}</strong>
+                {billing.isPro && billing.expiresAt
+                  ? ` (${billing.daysRemaining} days left — valid until ${new Date(billing.expiresAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })})`
+                  : !billing.isPro
+                    ? ` • Passes start at ${formatNaira(billing.settings.price7dNgn)} (7 days), ${formatNaira(billing.settings.price30dNgn)} (30 days), or ${formatNaira(billing.settings.price90dNgn)} (90 days).`
+                    : ""}
+              </p>
+            </div>
+
+            <Link
+              href="/dashboard/upgrade"
+              className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-2.5 text-xs font-bold text-obsidian-950 shadow-cyan-glow transition hover:brightness-110"
+            >
+              <Crown className="h-4 w-4" aria-hidden="true" />
+              <span>
+                {billing.isPro
+                  ? "Manage Pass & Receipts"
+                  : "Upgrade with Paystack"}
+              </span>
+            </Link>
+          </div>
+        </section>
 
         {/* Installable App (PWA) Section */}
         <section

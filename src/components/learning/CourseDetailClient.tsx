@@ -12,6 +12,7 @@ import {
   Circle,
   ClipboardCheck,
   Clock,
+  Crown,
   Layers,
   Loader2,
   PlayCircle,
@@ -19,6 +20,7 @@ import {
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { ContentProvenanceBadge } from "@/components/learning/ContentProvenanceBadge";
 import { formatCategoryLabel } from "@/data/onboardingOptions";
+import { useStudentSubscription } from "@/lib/billing/billingService";
 import { fetchCourseDetail } from "@/lib/learning/learningService";
 import type {
   OngoingCourseItem,
@@ -39,6 +41,7 @@ export function CourseDetailClient({ courseSlug }: CourseDetailClientProps) {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<CourseDetailPayload | null>(null);
+  const { billing } = useStudentSubscription();
 
   useEffect(() => {
     let active = true;
@@ -521,6 +524,21 @@ export function CourseDetailClient({ courseSlug }: CourseDetailClientProps) {
                                 <span className="text-xs font-medium text-slate-400">
                                   Lesson {tIdx + 1}.{lIdx + 1}
                                 </span>
+                                {tIdx === 0 && lIdx === 0 ? (
+                                  <span className="inline-flex items-center rounded-full border border-emerald-400/35 bg-emerald-500/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                                    Free Preview
+                                  </span>
+                                ) : !billing.isPro &&
+                                  billing.settings.paywallEnabled &&
+                                  payload.userProfile?.role !== "admin" ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/35 bg-amber-500/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">
+                                    <Crown
+                                      className="h-2.5 w-2.5 text-amber-300"
+                                      aria-hidden="true"
+                                    />
+                                    TRALIX Pro
+                                  </span>
+                                ) : null}
                                 {isBookmarked ? (
                                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-300">
                                     <Bookmark

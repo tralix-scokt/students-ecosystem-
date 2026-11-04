@@ -206,6 +206,9 @@ export async function POST(request: Request) {
   }
 
   const featureName = resolveFeatureName(action);
+  const hasImageAttachment =
+    action === "tutor_chat" &&
+    Boolean(body.imageDataUrl && isValidTutorImageDataUrl(String(body.imageDataUrl)));
   const startedAt = Date.now();
   let reservedLogId: string | null = null;
   let preferredProvider: "openai" | "openrouter" = "openai";
@@ -218,6 +221,7 @@ export async function POST(request: Request) {
         p_feature: featureName,
         p_provider: "openai",
         p_model: "gpt-4o-mini",
+        p_has_image: hasImageAttachment,
       }
     );
 
@@ -241,6 +245,22 @@ export async function POST(request: Request) {
               "AI services are temporarily paused by platform administration. Your saved notes, lessons, and curated exam banks remain available.",
           },
           { status: 503 }
+        );
+      }
+
+      if (quota.reason === "paywall_required") {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "PAYWALL_REQUIRED",
+            paywallRequired: true,
+            paywallFeature: String(quota.paywallFeature || featureName),
+            error: String(
+              quota.message ||
+                "You have reached your Free Starter daily limit. Upgrade to TRALIX Pro (from ₦2,000) for unlimited AI access."
+            ),
+          },
+          { status: 402 }
         );
       }
 

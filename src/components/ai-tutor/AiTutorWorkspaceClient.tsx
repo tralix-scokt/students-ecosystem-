@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Crown,
   Edit3,
   ExternalLink,
   Globe,
@@ -31,10 +32,15 @@ import {
   X,
 } from "lucide-react";
 import { TutorRichMessageRenderer } from "@/components/ai-tutor/TutorRichMessageRenderer";
+import { PaystackUpgradeModal } from "@/components/billing/PaystackUpgradeModal";
 import { StudentsEcosystemCrest } from "@/components/book/StudentsEcosystemCrest";
 import { DashboardErrorState } from "@/components/dashboard/DashboardErrorState";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
+import {
+  notifyBillingStatusUpdated,
+  useStudentSubscription,
+} from "@/lib/billing/billingService";
 import {
   preparePhotoFileForTutor,
   type PreparedPhotoAttachment,
@@ -107,6 +113,17 @@ export function AiTutorWorkspaceClient() {
 
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [paywallHit, setPaywallHit] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<{
+    title: string;
+    description: string;
+  }>({
+    title: "Unlock Unlimited 24/7 TRALIX AI Tutoring",
+    description:
+      "Upgrade with Paystack (₦2,000 for 7 days, ₦3,500 monthly, or ₦10,000 for 90 days) for unlimited daily AI Tutor messages, Snap-and-Solve Photo Vision, and full CBT mocks.",
+  });
+  const { billing, refresh: refreshBilling } = useStudentSubscription();
   const [lastFailedPayload, setLastFailedPayload] = useState<{
     text: string;
     image: PreparedPhotoAttachment | null;
@@ -490,6 +507,7 @@ export function AiTutorWorkspaceClient() {
       };
 
       setSendError(null);
+      setPaywallHit(false);
       setLastFailedPayload(null);
       setLastStoppedPayload(null);
       setSuggestedFollowUps([]);
@@ -545,12 +563,28 @@ export function AiTutorWorkspaceClient() {
         setLastFailedPayload({ text: trimmed, image: activeImg || null });
         setPromptInput(trimmed);
         if (activeImg) setAttachedImage(activeImg);
-        setSendError(
-          res.error ||
-            "Unable to reach the AI Tutor right now. Please try again."
+        const isPaywall = Boolean(
+          res.paywallRequired || res.code === "PAYWALL_REQUIRED"
         );
+        setPaywallHit(isPaywall);
+        const errMsg =
+          res.error ||
+          "Unable to reach the AI Tutor right now. Please try again.";
+        setSendError(errMsg);
+        if (isPaywall) {
+          setUpgradeReason({
+            title:
+              res.paywallFeature === "photo_snap"
+                ? "Daily Free AI Photo Snaps Reached"
+                : "Daily Free AI Tutor Limit Reached",
+            description: errMsg,
+          });
+          setUpgradeModalOpen(true);
+        }
         return;
       }
+
+      notifyBillingStatusUpdated();
 
       const convId = res.conversationId || activeConversationId || "session";
       setActiveConversationId(convId);
@@ -1268,27 +1302,47 @@ export function AiTutorWorkspaceClient() {
                   {sendError && (
                     <div
                       role="alert"
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3.5 text-xs text-red-200"
+                      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 text-xs ${
+                        paywallHit
+                          ? "border-amber-400/40 bg-amber-500/12 text-amber-100"
+                          : "border-red-400/30 bg-red-500/10 text-red-200"
+                      }`}
                     >
                       <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-red-300" />
+                        {paywallHit ? (
+                          <Crown className="h-4 w-4 shrink-0 text-amber-300" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-red-300" />
+                        )}
                         <span>{sendError}</span>
                       </div>
-                      {lastFailedPayload && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            submitPrompt(
-                              lastFailedPayload.text,
-                              lastFailedPayload.image
-                            )
-                          }
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/20 px-3 py-1.5 font-semibold text-red-100 hover:bg-red-500/30"
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
-                          <span>Retry</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {paywallHit && (
+                          <button
+                            type="button"
+                            onClick={() => setUpgradeModalOpen(true)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 px-3 py-1.5 font-bold text-slate-950 hover:brightness-110"
+                          >
+                            <Crown className="h-3.5 w-3.5" />
+                            <span>Unlock TRALIX Pro</span>
+                          </button>
+                        )}
+                        {lastFailedPayload && !paywallHit && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              submitPrompt(
+                                lastFailedPayload.text,
+                                lastFailedPayload.image
+                              )
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/20 px-3 py-1.5 font-semibold text-red-100 hover:bg-red-500/30"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            <span>Retry</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -1296,6 +1350,38 @@ export function AiTutorWorkspaceClient() {
                 </div>
               )}
             </div>
+
+            {messages.length === 0 && sendError && (
+              <div className="px-4 pt-3 sm:px-8">
+                <div
+                  role="alert"
+                  className={`mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 text-xs ${
+                    paywallHit
+                      ? "border-amber-400/40 bg-amber-500/12 text-amber-100"
+                      : "border-red-400/30 bg-red-500/10 text-red-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {paywallHit ? (
+                      <Crown className="h-4 w-4 shrink-0 text-amber-300" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-red-300" />
+                    )}
+                    <span>{sendError}</span>
+                  </div>
+                  {paywallHit && (
+                    <button
+                      type="button"
+                      onClick={() => setUpgradeModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 px-3 py-1.5 font-bold text-slate-950 hover:brightness-110"
+                    >
+                      <Crown className="h-3.5 w-3.5" />
+                      <span>Unlock TRALIX Pro</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Clean Composer Bar with + Photo Attachment & Voice Dictation */}
             <form
@@ -1524,6 +1610,22 @@ export function AiTutorWorkspaceClient() {
           </section>
         </div>
       </div>
+
+      <PaystackUpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        reasonTitle={upgradeReason.title}
+        reasonDescription={upgradeReason.description}
+        settings={billing.settings}
+        isPro={billing.isPro}
+        isAdmin={billing.isAdmin}
+        onUpgraded={() => {
+          setUpgradeModalOpen(false);
+          setPaywallHit(false);
+          setSendError(null);
+          void refreshBilling();
+        }}
+      />
     </DashboardShell>
   );
 }

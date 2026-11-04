@@ -5,6 +5,8 @@ export interface AiGatewayResponse {
   aborted?: boolean;
   error?: string;
   code?: string;
+  paywallRequired?: boolean;
+  paywallFeature?: string;
   conversationId?: string;
   reply?: string;
   content?: string;
@@ -101,12 +103,15 @@ export async function invokeAiGateway(
       typeof json?.error === "string" &&
       json.error.toLowerCase().includes("paused");
 
-    // Definitive client/validation/quota/admin-pause responses should return directly
+    // Definitive client/validation/quota/paywall/admin-pause responses should return directly
     if (
       !json?.transportFallback &&
       (res.status === 400 ||
+        res.status === 402 ||
         res.status === 403 ||
         res.status === 429 ||
+        json?.code === "PAYWALL_REQUIRED" ||
+        json?.paywallRequired ||
         isPausedByAdmin ||
         (res.status === 401 && !accessToken))
     ) {
@@ -175,6 +180,7 @@ export async function invokeAiGateway(
 
     if (error) {
       let friendlyMsg = "";
+      let parsedErrPayload: Partial<AiGatewayResponse> = {};
       const errWithCtx = error as unknown as {
         message?: string;
         context?: { json?: () => Promise<Record<string, unknown>> };
@@ -185,13 +191,24 @@ export async function invokeAiGateway(
           if (typeof errBody?.error === "string" && errBody.error.trim()) {
             friendlyMsg = errBody.error.trim();
           }
+          if (errBody?.code) {
+            parsedErrPayload.code = String(errBody.code);
+          }
+          if (errBody?.paywallRequired) {
+            parsedErrPayload.paywallRequired = Boolean(errBody.paywallRequired);
+          }
+          if (errBody?.paywallFeature) {
+            parsedErrPayload.paywallFeature = String(errBody.paywallFeature);
+          }
         } catch {
           // Ignore body parse failure
         }
       }
 
       return (
-        (friendlyMsg ? { ok: false, error: friendlyMsg } : null) ||
+        (friendlyMsg
+          ? { ok: false, error: friendlyMsg, ...parsedErrPayload }
+          : null) ||
         primaryErrorResult || {
           ok: false,
           error:

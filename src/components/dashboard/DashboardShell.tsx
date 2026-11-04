@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Command,
+  Crown,
   FileText,
   GraduationCap,
   LayoutDashboard,
@@ -35,6 +36,7 @@ import { QuickFocusPomodoro } from "@/components/dashboard/QuickFocusPomodoro";
 import { DASHBOARD_NAV_ITEMS } from "@/data/dashboardNavigation";
 import { formatCategoryLabel } from "@/data/onboardingOptions";
 import { signOutLearner } from "@/lib/auth/authService";
+import { useStudentSubscription } from "@/lib/billing/billingService";
 import { searchAvailableDashboardContent } from "@/lib/dashboard/examPathways";
 import type { UserProfile } from "@/types/auth";
 import type {
@@ -78,6 +80,7 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { billing } = useStudentSubscription();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -289,8 +292,34 @@ export function DashboardShell({
           })}
         </nav>
 
-        {/* Sidebar Bottom Invite + Admin Link (Admins Only) + Sign Out */}
+        {/* Sidebar Bottom Upgrade + Invite + Admin Link (Admins Only) + Sign Out */}
         <div className="space-y-2 border-t border-white/[0.06] p-3">
+          <Link
+            href="/dashboard/upgrade"
+            title={
+              sidebarCollapsed
+                ? billing.isPro
+                  ? "TRALIX Pro Active"
+                  : "Upgrade to TRALIX Pro"
+                : undefined
+            }
+            className={`flex min-h-[40px] w-full items-center gap-3 rounded-xl border px-3 py-2 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-400 ${
+              billing.isPro
+                ? "border-amber-400/40 bg-amber-500/12 text-amber-200 hover:bg-amber-500/20"
+                : "border-cyan-400/45 bg-gradient-to-r from-cyan-500/18 to-blue-600/18 text-cyan-200 hover:from-cyan-500/28 hover:to-blue-600/28"
+            } ${sidebarCollapsed ? "justify-center" : ""}`}
+          >
+            <Crown
+              className="h-4 w-4 shrink-0 text-amber-300"
+              aria-hidden="true"
+            />
+            {!sidebarCollapsed && (
+              <span className="truncate">
+                {billing.isPro ? "TRALIX Pro Active" : "Upgrade to Pro"}
+              </span>
+            )}
+          </Link>
+
           <a
             href={buildClassmateInvitePayload().whatsappUrl}
             target="_blank"
@@ -532,8 +561,21 @@ export function DashboardShell({
               )}
             </div>
 
-            {/* Right Controls: Install App, Command Palette, Focus Pomodoro, Mobile Search Toggle, Notifications, Profile Menu */}
+            {/* Right Controls: Upgrade Badge, Install App, Command Palette, Focus Pomodoro, Mobile Search Toggle, Notifications, Profile Menu */}
             <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* TRALIX Pro / Upgrade Quick Pill */}
+              <Link
+                href="/dashboard/upgrade"
+                className={`hidden sm:inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-400 ${
+                  billing.isPro
+                    ? "border-amber-400/40 bg-amber-500/12 text-amber-200 hover:bg-amber-500/20"
+                    : "border-cyan-400/45 bg-gradient-to-r from-cyan-500/20 to-blue-600/20 text-cyan-100 hover:from-cyan-500/30 hover:to-blue-600/30"
+                }`}
+              >
+                <Crown className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
+                <span>{billing.isPro ? "PRO" : "Upgrade"}</span>
+              </Link>
+
               {/* 1-Click Install App Trigger (hidden once installed) */}
               <InstallAppButton variant="header" />
 

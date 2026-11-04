@@ -251,7 +251,10 @@ export async function startPracticeExamSession(params: {
   timeLimitMinutes: number;
   practiceSource: "curated_bank" | "past_questions_api" | "ai_generated";
   examYear?: number | null;
-}): Promise<{ ok: true; attempt: ActiveExamAttempt } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; attempt: ActiveExamAttempt }
+  | { ok: false; error: string; paywallRequired?: boolean }
+> {
   const supabase = createBrowserSupabaseClient();
   if (!supabase) {
     return { ok: false, error: "Supabase client is not configured." };
@@ -289,10 +292,18 @@ export async function startPracticeExamSession(params: {
     });
 
     if (error || !data) {
+      const msg = error?.message || "";
+      if (msg.includes("PAYWALL_REQUIRED")) {
+        return {
+          ok: false,
+          paywallRequired: true,
+          error: msg.replace(/^PAYWALL_REQUIRED:\s*/i, ""),
+        };
+      }
       return {
         ok: false,
         error:
-          error?.message ||
+          msg ||
           "No past questions matched this subject/year selection. Try 'All Years (Mixed)'.",
       };
     }
@@ -314,6 +325,9 @@ export async function startPracticeExamSession(params: {
     if (!aiRes.ok || !aiRes.questions || aiRes.questions.length === 0) {
       return {
         ok: false,
+        paywallRequired: Boolean(
+          aiRes.paywallRequired || aiRes.code === "PAYWALL_REQUIRED"
+        ),
         error:
           aiRes.error ||
           "Could not generate AI practice questions right now. Try the Curated Practice Bank or retry shortly.",
@@ -334,10 +348,18 @@ export async function startPracticeExamSession(params: {
   });
 
   if (error || !data) {
+    const msg = error?.message || "";
+    if (msg.includes("PAYWALL_REQUIRED")) {
+      return {
+        ok: false,
+        paywallRequired: true,
+        error: msg.replace(/^PAYWALL_REQUIRED:\s*/i, ""),
+      };
+    }
     return {
       ok: false,
       error:
-        error?.message ||
+        msg ||
         "No matching questions found for this selection. Try 'Mixed' difficulty or AI-Generated Practice.",
     };
   }
@@ -426,7 +448,13 @@ export async function requestExamAiHelper(
     correctAnswer?: string;
   },
   options?: { signal?: AbortSignal }
-): Promise<{ ok: boolean; aborted?: boolean; content?: string; error?: string }> {
+): Promise<{
+  ok: boolean;
+  aborted?: boolean;
+  paywallRequired?: boolean;
+  content?: string;
+  error?: string;
+}> {
   const res = await invokeAiGateway(params, options);
   if (res.aborted) {
     return { ok: false, aborted: true, error: "Response stopped." };
@@ -434,6 +462,9 @@ export async function requestExamAiHelper(
   if (!res.ok || !res.content) {
     return {
       ok: false,
+      paywallRequired: Boolean(
+        res.paywallRequired || res.code === "PAYWALL_REQUIRED"
+      ),
       error: res.error || "Unable to generate AI guidance right now.",
     };
   }

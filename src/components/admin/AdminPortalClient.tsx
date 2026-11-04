@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Cpu,
+  CreditCard,
   Download,
   Globe,
   Loader2,
@@ -52,6 +53,7 @@ import {
 } from "@/lib/exams/pastQuestionsClient";
 
 import { AdminGrowthMarketingPanel } from "@/components/admin/AdminGrowthMarketingPanel";
+import { AdminPaystackBillingPanel } from "@/components/admin/AdminPaystackBillingPanel";
 
 type AdminSection =
   | "overview"
@@ -60,6 +62,7 @@ type AdminSection =
   | "exams"
   | "announcements"
   | "ai_governance"
+  | "paystack_billing"
   | "growth_marketing";
 
 const THEME_MODES: Array<{
@@ -976,6 +979,11 @@ export function AdminPortalClient() {
                 id: "ai_governance",
                 label: "AI Quotas & Audit Logs",
                 icon: <Cpu className="h-3.5 w-3.5" />,
+              },
+              {
+                id: "paystack_billing",
+                label: "Paystack & Subscriptions",
+                icon: <CreditCard className="h-3.5 w-3.5" />,
               },
               {
                 id: "growth_marketing",
@@ -2127,7 +2135,15 @@ export function AdminPortalClient() {
           </div>
         )}
 
-        {/* 7. GOOGLE SEO & VIRAL GROWTH COMMAND CENTER */}
+        {/* 7. PAYSTACK BILLING & SUBSCRIPTIONS VAULT */}
+        {section === "paystack_billing" && (
+          <AdminPaystackBillingPanel
+            users={users}
+            onStatusMessage={(msg) => setStatusBanner(msg)}
+          />
+        )}
+
+        {/* 8. GOOGLE SEO & VIRAL GROWTH COMMAND CENTER */}
         {section === "growth_marketing" && <AdminGrowthMarketingPanel />}
       </main>
     </div>

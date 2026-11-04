@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Crown,
   Eye,
   GraduationCap,
   Loader2,
@@ -23,9 +24,11 @@ import {
   XCircle,
 } from "lucide-react";
 import { buildExamChallengeSharePayload } from "@/lib/marketing/viralShare";
+import { PaystackUpgradeModal } from "@/components/billing/PaystackUpgradeModal";
 import { DashboardErrorState } from "@/components/dashboard/DashboardErrorState";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
+import { useStudentSubscription } from "@/lib/billing/billingService";
 import { useStudentDashboardData } from "@/lib/dashboard/useStudentDashboardData";
 import {
   fetchExamPrepBootstrap,
@@ -99,6 +102,16 @@ export function ExamPreparationClient() {
     null
   );
   const [copiedChallenge, setCopiedChallenge] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeModalMeta, setUpgradeModalMeta] = useState<{
+    title: string;
+    description: string;
+  }>({
+    title: "Unlock Full-Length CBT Mocks & AI Exam Coaching",
+    description:
+      "Upgrade to TRALIX Pro (₦2,000 for 7 days, ₦3,500 monthly, or ₦10,000 for 90 days) for 40–60 question timed JAMB/WAEC/NECO mocks, AI Custom Practice, step-by-step AI corrections, and 5-day revision plans.",
+  });
+  const { billing, refresh: refreshBilling } = useStudentSubscription();
 
   const autoSubmitTriggeredRef = useRef(false);
 
@@ -248,6 +261,19 @@ export function ExamPreparationClient() {
       return;
     }
 
+    if (
+      !billing.isPro &&
+      billing.settings.paywallEnabled &&
+      questionCount > billing.settings.freeMaxExamQuestions
+    ) {
+      setUpgradeModalMeta({
+        title: `Unlock ${questionCount}-Question Full-Length CBT Mocks`,
+        description: `Free Starter includes practice drills up to ${billing.settings.freeMaxExamQuestions} questions. Unlock full-length JAMB, WAEC, NECO & University CBT simulations (up to 60 items) with a 7-Day Cram Pass (₦2,000), Monthly Pro (₦3,500), or 90-Day Season Pass (₦10,000).`,
+      });
+      setUpgradeModalOpen(true);
+      return;
+    }
+
     setBuilderError(null);
     setStartingExam(true);
     setResultSummary(null);
@@ -270,6 +296,16 @@ export function ExamPreparationClient() {
 
     setStartingExam(false);
     if (!res.ok) {
+      if (res.paywallRequired) {
+        setUpgradeModalMeta({
+          title:
+            practiceSource === "ai_generated"
+              ? "Unlock Custom AI Mock Generation"
+              : "Unlock Full-Length CBT Simulations",
+          description: res.error,
+        });
+        setUpgradeModalOpen(true);
+      }
       setBuilderError(res.error);
       return;
     }
@@ -314,6 +350,14 @@ export function ExamPreparationClient() {
     setGeneratingPlan(false);
     if (res.ok && res.content) {
       setAiRevisionPlan(res.content);
+    } else if (res.paywallRequired) {
+      setUpgradeModalMeta({
+        title: "Unlock Personalized 5-Day AI Revision Plans",
+        description:
+          res.error ||
+          "Upgrade to TRALIX Pro (from ₦2,000) to generate personalized 5-day post-exam revision timetables tailored to your weak topics.",
+      });
+      setUpgradeModalOpen(true);
     }
   };
 
@@ -346,6 +390,14 @@ export function ExamPreparationClient() {
     setLoadingAiExplainId(null);
     if (res.ok && res.content) {
       setAiExplanations((prev) => ({ ...prev, [resp.id]: res.content! }));
+    } else if (res.paywallRequired) {
+      setUpgradeModalMeta({
+        title: "Unlock Step-by-Step AI Exam Walkthroughs",
+        description:
+          res.error ||
+          "Upgrade to TRALIX Pro (from ₦2,000) for unlimited teacher-style explanations on every missed exam question.",
+      });
+      setUpgradeModalOpen(true);
     }
   };
 
@@ -1152,18 +1204,44 @@ export function ExamPreparationClient() {
                           id="exam-q-count"
                           type="number"
                           min={2}
-                          max={practiceSource === "past_questions_api" ? 40 : 15}
+                          max={practiceSource === "past_questions_api" ? 60 : 40}
                           value={questionCount}
                           onChange={(e) =>
                             setQuestionCount(
                               Math.min(
-                                practiceSource === "past_questions_api" ? 40 : 15,
+                                practiceSource === "past_questions_api" ? 60 : 40,
                                 Math.max(2, Number(e.target.value))
                               )
                             )
                           }
                           className="mt-1.5 w-full rounded-xl border border-white/15 bg-obsidian-950 px-3 py-2 text-sm text-white"
                         />
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {[5, 10, 25, 40].map((preset) => {
+                            const isProPreset =
+                              !billing.isPro &&
+                              preset > billing.settings.freeMaxExamQuestions;
+                            return (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setQuestionCount(preset)}
+                                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold transition ${
+                                  questionCount === preset
+                                    ? "border-electric-400 bg-electric-500/20 text-electric-200"
+                                    : isProPreset
+                                      ? "border-amber-400/35 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
+                                      : "border-white/10 bg-obsidian-950 text-slate-400 hover:text-white"
+                                }`}
+                              >
+                                <span>{preset}Q</span>
+                                {isProPreset && (
+                                  <Crown className="h-2.5 w-2.5 text-amber-300" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <div>
@@ -1303,6 +1381,21 @@ export function ExamPreparationClient() {
           </>
         )}
       </div>
+
+      <PaystackUpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        reasonTitle={upgradeModalMeta.title}
+        reasonDescription={upgradeModalMeta.description}
+        settings={billing.settings}
+        isPro={billing.isPro}
+        isAdmin={billing.isAdmin}
+        onUpgraded={() => {
+          setUpgradeModalOpen(false);
+          setBuilderError(null);
+          void refreshBilling();
+        }}
+      />
     </DashboardShell>
   );
 }

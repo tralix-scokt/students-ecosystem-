@@ -830,6 +830,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const featureName = resolveFeatureName(action);
+    const hasImageAttachment =
+      action === "tutor_chat" &&
+      Boolean(body?.imageDataUrl && isValidImageDataUrl(body.imageDataUrl));
 
     // 1. Atomic serialized quota reservation (prevents parallel burst quota bypass)
     const { data: quotaRow, error: reserveErr } = await supabase.rpc(
@@ -838,6 +841,7 @@ Deno.serve(async (req: Request) => {
         p_feature: featureName,
         p_provider: "openai",
         p_model: "gpt-4o-mini",
+        p_has_image: hasImageAttachment,
       }
     );
 
@@ -855,6 +859,25 @@ Deno.serve(async (req: Request) => {
           }),
           {
             status: 503,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (quotaRow.reason === "paywall_required") {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            code: "PAYWALL_REQUIRED",
+            paywallRequired: true,
+            paywallFeature: String(quotaRow.paywallFeature || featureName),
+            error: String(
+              quotaRow.message ||
+                "You have reached your Free Starter daily limit. Upgrade to TRALIX Pro (from ₦2,000) for unlimited AI access."
+            ),
+          }),
+          {
+            status: 402,
             headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
           }
         );

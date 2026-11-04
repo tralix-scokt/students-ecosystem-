@@ -11,15 +11,19 @@ import {
   Calculator,
   CheckCircle2,
   Clock,
+  Crown,
   FileText,
   ListChecks,
   Loader2,
+  Lock,
   PauseCircle,
 } from "lucide-react";
+import { PaystackPricingPlansSection } from "@/components/billing/PaystackUpgradeModal";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { ContentProvenanceBadge } from "@/components/learning/ContentProvenanceBadge";
 import { LessonDiagramFigure } from "@/components/learning/LessonDiagramFigure";
 import { LessonExerciseRunner } from "@/components/learning/LessonExerciseRunner";
+import { useStudentSubscription } from "@/lib/billing/billingService";
 import {
   fetchLessonDetail,
   recordLessonProgress,
@@ -231,6 +235,7 @@ export function LessonReaderClient({
 
   const openedAtRef = useRef<number>(Date.now());
   const recordedVisitRef = useRef<string | null>(null);
+  const { billing, refresh: refreshBilling } = useStudentSubscription();
 
   useEffect(() => {
     let active = true;
@@ -525,6 +530,12 @@ export function LessonReaderClient({
     latestAttemptsByExercise,
   } = payload;
 
+  const isLessonLockedByPaywall =
+    previousLesson !== null &&
+    !billing.isPro &&
+    billing.settings.paywallEnabled &&
+    payload.userProfile?.role !== "admin";
+
   return (
     <DashboardShell
       userProfile={payload.userProfile}
@@ -665,74 +676,121 @@ export function LessonReaderClient({
             </header>
 
             {/* Lesson Introduction & Objectives + Structured Material Blocks */}
-            <div className="rounded-3xl border border-white/[0.08] bg-obsidian-900/85 p-6 sm:p-8">
-              <p className="text-base leading-8 text-slate-100">
-                {lesson.introduction}
-              </p>
+            {isLessonLockedByPaywall ? (
+              <div className="space-y-6 rounded-3xl border border-amber-400/30 bg-obsidian-900/90 p-6 sm:p-8">
+                <div>
+                  <p className="text-base leading-8 text-slate-200">
+                    {lesson.introduction}
+                  </p>
+                </div>
 
-              {lesson.learning_objectives.length > 0 ? (
-                <div className="my-6 rounded-2xl border border-white/10 bg-obsidian-950/85 p-4 sm:p-5">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-electric-300">
-                    <ListChecks className="h-4 w-4" aria-hidden="true" />
-                    <span>Lesson Learning Objectives</span>
+                <div className="rounded-2xl border border-cyan-400/25 bg-slate-950/85 p-5 sm:p-6 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-300 border border-amber-400/30">
+                        <Lock className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1">
+                          <Crown className="h-3 w-3" aria-hidden="true" />
+                          TRALIX Pro Course Chapter
+                        </p>
+                        <h2 className="text-base sm:text-lg font-extrabold text-white">
+                          Unlock This Lesson, Worked Examples &amp; Mastery Quiz
+                        </h2>
+                      </div>
+                    </div>
                   </div>
-                  <ul className="mt-2.5 list-disc space-y-1.5 pl-5 text-sm text-slate-200">
-                    {lesson.learning_objectives.map((obj) => (
-                      <li key={obj}>{obj}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
 
-              {/* Structured Material Blocks */}
-              <div>
-                {materials.map((block) => (
-                  <MaterialBlockView key={block.id} block={block} />
-                ))}
-              </div>
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    Lesson 1 of every course is free on Starter. Upgrade with
+                    Paystack to unlock every course chapter, unlimited 24/7 AI
+                    Photo Tutoring, and full-length JAMB/WAEC/NECO CBT mocks.
+                  </p>
 
-              {/* Lesson Summary & Key Points */}
-              {(lesson.summary || lesson.key_points.length > 0) ? (
-                <div className="mt-8 rounded-2xl border border-electric-400/25 bg-obsidian-950/90 p-5">
-                  <h2 className="font-display text-base font-bold text-white">
-                    Lesson Summary &amp; Key Points
-                  </h2>
-                  {lesson.summary ? (
-                    <p className="mt-2 text-sm leading-relaxed text-slate-200">
-                      {lesson.summary}
-                    </p>
-                  ) : null}
-                  {lesson.key_points.length > 0 ? (
-                    <ul className="mt-3 space-y-1.5 text-sm text-slate-200">
-                      {lesson.key_points.map((pt) => (
-                        <li key={pt} className="flex items-start gap-2">
-                          <CheckCircle2
-                            className="mt-0.5 h-4 w-4 shrink-0 text-electric-300"
-                            aria-hidden="true"
-                          />
-                          <span>{pt}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
-            {/* Practice Exercises */}
-            {exercises.length > 0 ? (
-              <div className="space-y-6">
-                {exercises.map((ex) => (
-                  <LessonExerciseRunner
-                    key={ex.id}
-                    exercise={ex}
-                    initialLatestAttempt={
-                      latestAttemptsByExercise[ex.id] ?? null
-                    }
+                  <PaystackPricingPlansSection
+                    settings={billing.settings}
+                    isPro={billing.isPro}
+                    isAdmin={billing.isAdmin}
+                    callbackPath={`/dashboard/learn/courses/${course.slug}/lessons/${lesson.slug}`}
+                    onVerifiedSuccess={() => {
+                      void refreshBilling();
+                    }}
                   />
-                ))}
+                </div>
               </div>
-            ) : null}
+            ) : (
+              <>
+                <div className="rounded-3xl border border-white/[0.08] bg-obsidian-900/85 p-6 sm:p-8">
+                  <p className="text-base leading-8 text-slate-100">
+                    {lesson.introduction}
+                  </p>
+
+                  {lesson.learning_objectives.length > 0 ? (
+                    <div className="my-6 rounded-2xl border border-white/10 bg-obsidian-950/85 p-4 sm:p-5">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-electric-300">
+                        <ListChecks className="h-4 w-4" aria-hidden="true" />
+                        <span>Lesson Learning Objectives</span>
+                      </div>
+                      <ul className="mt-2.5 list-disc space-y-1.5 pl-5 text-sm text-slate-200">
+                        {lesson.learning_objectives.map((obj) => (
+                          <li key={obj}>{obj}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {/* Structured Material Blocks */}
+                  <div>
+                    {materials.map((block) => (
+                      <MaterialBlockView key={block.id} block={block} />
+                    ))}
+                  </div>
+
+                  {/* Lesson Summary & Key Points */}
+                  {(lesson.summary || lesson.key_points.length > 0) ? (
+                    <div className="mt-8 rounded-2xl border border-electric-400/25 bg-obsidian-950/90 p-5">
+                      <h2 className="font-display text-base font-bold text-white">
+                        Lesson Summary &amp; Key Points
+                      </h2>
+                      {lesson.summary ? (
+                        <p className="mt-2 text-sm leading-relaxed text-slate-200">
+                          {lesson.summary}
+                        </p>
+                      ) : null}
+                      {lesson.key_points.length > 0 ? (
+                        <ul className="mt-3 space-y-1.5 text-sm text-slate-200">
+                          {lesson.key_points.map((pt) => (
+                            <li key={pt} className="flex items-start gap-2">
+                              <CheckCircle2
+                                className="mt-0.5 h-4 w-4 shrink-0 text-electric-300"
+                                aria-hidden="true"
+                              />
+                              <span>{pt}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Practice Exercises */}
+                {exercises.length > 0 ? (
+                  <div className="space-y-6">
+                    {exercises.map((ex) => (
+                      <LessonExerciseRunner
+                        key={ex.id}
+                        exercise={ex}
+                        initialLatestAttempt={
+                          latestAttemptsByExercise[ex.id] ?? null
+                        }
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
 
             {/* Previous & Next Lesson Footer Navigation */}
             <nav
